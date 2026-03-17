@@ -90,6 +90,8 @@ class Trainer:
         correct = 0
         total = 0
         
+        # Simple character-based progress to avoid heavy dependencies if possible, 
+        # but let's try to use a quiet approach.
         for batch_idx, (data, target) in enumerate(self.train_loader):
             data, target = data.to(self.device), target.to(self.device)
             
@@ -108,8 +110,13 @@ class Trainer:
             if self.prune_interval > 0 and self.step % self.prune_interval == 0:
                 self.prune()
             
+            # Print a small progress dot or similar every 100 batches to show life
+            if batch_idx % 100 == 0:
+                print(".", end="", flush=True)
+            
         avg_loss = total_loss / len(self.train_loader)
         acc = 100. * correct / total
+        print(" done.") # End the dot line
         return avg_loss, acc
 
     def evaluate(self):
@@ -137,7 +144,7 @@ class Trainer:
         if not has_masked:
             return
 
-        print(f"\nStep {self.step}: Pruning connections...")
+        summary = []
         for name, module in self.model.named_modules():
             if hasattr(module, 'mask') and name in self.importance_scores:
                 avg_importance = self.importance_scores[name] / self.prune_interval
@@ -145,8 +152,11 @@ class Trainer:
                 if hasattr(module, 'prune'):
                     module.prune(avg_importance, self.prune_threshold)
                 after_pruned = (module.mask == 0).sum().item()
-                print(f"Layer {name}: Pruned {after_pruned - before_pruned} connections. Total pruned: {after_pruned}")
+                summary.append(f"{name}: +{after_pruned - before_pruned}")
                 self.importance_scores[name].zero_()
+        
+        if summary:
+            print(f"\n[Pruning] {' | '.join(summary)}")
 
     def run(self, num_epochs):
         for epoch in range(self.epoch, num_epochs):
@@ -178,11 +188,20 @@ class Trainer:
             self.history.setdefault('active_neurons', []).append(active_neurons)
             
             duration = time.time() - start_time
-            print(f"Epoch {epoch+1}/{num_epochs} | "
-                  f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% | "
-                  f"Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
-            print(f"Metrics | Sparsity: {sparsity:.4f} | Pruned: {pruned_count} | "
-                  f"Active Conns: {active_connections} | Active Neurons: {active_neurons} | Time: {duration:.2f}s")
+            
+            # --- NICE TABLE LOGGING ---
+            if epoch == 0:
+                header = f"{'Epoch':^7} | {'Tr Loss':^8} | {'Tr Acc':^7} | {'Te Loss':^8} | {'Te Acc':^7} | {'Sparsity':^8} | {'Active':^10}"
+                print("\n" + "="*75)
+                print(header)
+                print("-" * 75)
+            
+            row = (f"{epoch+1:^7} | {train_loss:^8.4f} | {train_acc:^7.2f}% | "
+                   f"{test_loss:^8.4f} | {test_acc:^7.2f}% | {sparsity:^8.4f} | {active_connections:^10}")
+            print(row)
+            
+            if epoch == num_epochs - 1:
+                print("="*75 + "\n")
             
             self.save_checkpoint()
         

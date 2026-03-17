@@ -60,17 +60,24 @@ This will save checkpoints and history results to `/content/drive/MyDrive/hebbia
 
 ## 📈 Monitoring Results
 
-The training loop outputs:
-- **Loss and Accuracy** for both training and validation sets.
-- **Sparsity:** The fraction of total connections that have been pruned.
-- **Pruned:** Total number of connections cut.
-- **Active Conns:** Number of connections currently active ($W_{eff} \neq 0$).
-- **Active Neurons:** Number of neurons that have at least one active incoming connection.
+The training loop outputs a clean, professional table:
 
-### Baseline vs. Hebbian Comparison
-To see the difference in network complexity:
-1. Run the **Baseline**: Note that `Active Conns` and `Active Neurons` will remain constant (equal to full architecture).
-2. Run the **Hebbian**: Observe how `Active Conns` and `Active Neurons` decrease epoch-by-epoch as the network sparsifies.
+```text
+===========================================================================
+ Epoch  | Tr Loss  | Tr Acc  | Te Loss  | Te Acc  | Sparsity |   Active   
+---------------------------------------------------------------------------
+   1    |  0.1542  |  95.42% |  0.1204  |  96.30% |  0.0000  |   668672   
+   2    |  0.0821  |  97.51% |  0.0911  |  97.12% |  0.1524  |   566782   
+===========================================================================
+```
+
+- **Sparsity:** The fraction of total connections that have been pruned.
+- **Active:** Number of connections currently active ($W_{eff} \neq 0$).
+
+### 🚀 Optimizing Your Pruning
+If your sparsity reaches **1.0000** (total brain death), your threshold is too high. Try these settings:
+- **Baseline Accuracy**: `--prune_threshold 0.000001` (very gentle)
+- **Aggressive Pruning**: `--prune_threshold 0.0001` (cuts more, but riskier)
 
 Results are saved as `.pth` checkpoints and `.json` history files in the `./results` directory.
 
