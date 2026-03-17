@@ -33,6 +33,19 @@ Where:
 pip install torch torchvision
 ```
 
+## 🏗️ Baseline Architecture
+
+The project uses a 3-layer MLP (Multi-Layer Perceptron) for MNIST classification:
+
+| Layer | Type | Input Size | Output Size | Parameters (Weights) |
+| :--- | :--- | :--- | :--- | :--- |
+| **fc1** | Linear | 784 (Input) | 512 | 401,408 |
+| **fc2** | Linear | 512 | 512 | 262,144 |
+| **fc3** | Linear | 512 | 10 (Output) | 5,120 |
+| **Total** | | | **1,034 Neurons** | **668,672 Connections** |
+
+*Note: Neurons refer to hidden and output units. Connections refer to unique synaptic weights.*
+
 ### 🧪 How to Run
 
 > [!NOTE]
@@ -82,8 +95,24 @@ If your sparsity reaches **1.0000** (total brain death), your threshold is too h
 
 Results are saved as `.pth` checkpoints and `.json` history files in the `./results` directory.
 
+## 📊 Visualizing Results
+
+The `plot_results.py` script allows you to compare multiple experiments visually. It reads the `.json` history files and generates an `experiment_results.png` image.
+
+```bash
+# Compare baseline and hebbian runs
+python plot_results.py results/history_baseline_MNIST.json results/history_hebbian_MNIST.json
+```
+
+It plots:
+- Loss and Accuracy curves.
+- Structural Sparsity over time.
+- Active Connections and Neurons.
+
+---
 ## 🛠️ Hyperparameters
 - `--lr`: Learning rate (default: 0.001)
 - `--prune_interval`: Number of steps between pruning checks (default: 500)
 - `--prune_threshold`: Importance threshold for pruning (default: 0.0001)
 - `--batch_size`: Training batch size (default: 64)
+- `--exp_name`: Custom name for experiment outputs.
