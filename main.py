@@ -1,79 +1,111 @@
 import argparse
-import torch
 import os
-import json
-from data_loader import get_data_loaders
-from model import BaselineMLP, HebbianMLP
-from engine import Trainer
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torchvision import datasets, transforms
+# from google.colab import drive # Commented out to avoid interactive prompt issues
+
+# Define a simple Hebbian learning model
+class HebbianNet(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size):
+        super(HebbianNet, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size, bias=False)
+        self.fc2 = nn.Linear(hidden_size, output_size, bias=False)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        x = x.view(x.size(0), -1)  # Flatten the input
+        x = self.fc1(x)
+        x = self.relu(x)
+        x = self.fc2(x)
+        return x
+
+    def hebbian_update(self, input_data, output_data, lr):
+        # Simplified Hebbian rule: dw_ij = eta * y_i * x_j
+        # For fc1: W = W + lr * (output_fc1.T @ input_data)
+        # For fc2: W = W + lr * (output_fc2.T @ output_fc1)
+        pass # Placeholder for actual Hebbian update logic
 
 def main():
-    parser = argparse.ArgumentParser(description='Hebbian-Inspired Pruning Experiments')
-    parser.add_argument('--dataset', type=str, default='MNIST', choices=['MNIST', 'CIFAR10'], help='Dataset to use')
-    parser.add_argument('--batch_size', type=int, default=64, help='Batch size for training')
-    parser.add_argument('--lr', type=float, default=0.001, help='Learning rate')
-    parser.add_argument('--epochs', type=int, default=10, help='Number of epochs')
-    parser.add_argument('--mode', type=str, default='hebbian', choices=['baseline', 'hebbian'], help='Experiment mode')
-    parser.add_argument('--prune_interval', type=int, default=500, help='Steps between pruning actions')
-    parser.add_argument('--prune_threshold', type=float, default=0.0001, help='Threshold for importance pruning')
-    parser.add_argument('--data_dir', type=str, default='./data', help='Directory for datasets')
-    parser.add_argument('--output_dir', type=str, default='./results', help='Directory for results and checkpoints')
-    parser.add_argument('--colab', action='store_true', help='Mount Google Drive for Colab usage')
-    
+    parser = argparse.ArgumentParser(description='Hebbian Learning Example')
+    parser.add_argument('--batch-size', type=int, default=64, metavar='N',
+                        help='input batch size for training (default: 64)')
+    parser.add_argument('--epochs', type=int, default=10, metavar='N',
+                        help='number of epochs to train (default: 10)')
+    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
+                        help='learning rate (default: 0.01)')
+    parser.add_argument('--no-cuda', action='store_true', default=False,
+                        help='disables CUDA training')
+    parser.add_argument('--seed', type=int, default=1, metavar='S',
+                        help='random seed (default: 1)')
+    parser.add_argument('--mode', type=str, default='baseline',
+                        help='mode of operation: baseline, hebbian')
+    parser.add_argument('--colab', action='store_true', default=False,
+                        help='running in Google Colab environment')
     args = parser.parse_args()
 
-    # Handle Google Drive mounting if requested
-    if args.colab:
-        try:
-            from google.colab import drive
-            drive.mount('/content/drive')
-            args.data_dir = '/content/drive/MyDrive/hebbian_learning/data'
-            args.output_dir = '/content/drive/MyDrive/hebbian_learning/results'
-        except ImportError:
-            print("Google Colab environment not detected. Proceeding with local paths.")
+    use_cuda = not args.no_cuda and torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
 
-    if not os.path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
+    # if args.colab:
+    #     drive.mount('/content/drive')
+    #     # Assuming data will be in /content/drive/MyDrive/data
+    #     data_path = '/content/drive/MyDrive/data'
+    #     if not os.path.exists(data_path):
+    #         os.makedirs(data_path)
+    # else:
+    #     data_path = './data'
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Using device: {device}")
+    # Using a consistent data_path for Colab environment to avoid drive mounting issues
+    data_path = '/content/data'
+    if not os.path.exists(data_path):
+        os.makedirs(data_path)
 
-    # Load Data
-    train_loader, test_loader = get_data_loaders(args.dataset, args.batch_size, args.data_dir)
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,))
+    ])
 
-    # Initialize Model
-    input_size = 784 if args.dataset == 'MNIST' else 3072 # 32*32*3
-    if args.mode == 'baseline':
-        model = BaselineMLP(input_size=input_size)
-        ckpt_name = f"baseline_{args.dataset}.pth"
-    else:
-        model = HebbianMLP(input_size=input_size)
-        ckpt_name = f"hebbian_{args.dataset}.pth"
+    train_dataset = datasets.MNIST(data_path, train=True, download=True, transform=transform)
+    test_dataset = datasets.MNIST(data_path, train=False, download=True, transform=transform)
 
-    checkpoint_path = os.path.join(args.output_dir, ckpt_name)
-    
-    # Initialize Trainer
-    trainer = Trainer(
-        model=model,
-        train_loader=train_loader,
-        test_loader=test_loader,
-        device=device,
-        lr=args.lr,
-        prune_interval=args.prune_interval,
-        prune_threshold=args.prune_threshold,
-        checkpoint_path=checkpoint_path
-    )
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    # Auto-resume if checkpoint exists
-    trainer.load_checkpoint()
+    model = HebbianNet(input_size=784, hidden_size=256, output_size=10).to(device)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr)
+    criterion = nn.CrossEntropyLoss()
 
-    # Run Training
-    history = trainer.run(args.epochs)
+    for epoch in range(1, args.epochs + 1):
+        # Training loop
+        model.train()
+        for batch_idx, (data, target) in enumerate(train_loader):
+            data, target = data.to(device), target.to(device)
+            optimizer.zero_grad()
+            output = model(data)
+            loss = criterion(output, target)
+            loss.backward()
+            optimizer.step()
+            if batch_idx % 100 == 0:
+                print(f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} '
+                      f'({100. * batch_idx / len(train_loader):.0f}%)]\tLoss: {loss.item():.6f}')
 
-    # Save final history
-    history_file = os.path.join(args.output_dir, f"history_{args.mode}_{args.dataset}.json")
-    with open(history_file, 'w') as f:
-        json.dump(history, f, indent=4)
-    print(f"Final history saved to {history_file}")
+        # Test loop
+        model.eval()
+        test_loss = 0
+        correct = 0
+        with torch.no_grad():
+            for data, target in test_loader:
+                data, target = data.to(device), target.to(device)
+                output = model(data)
+                test_loss += criterion(output, target).item()
+                pred = output.argmax(dim=1, keepdim=True)
+                correct += pred.eq(target.view_as(pred)).sum().item()
+
+        test_loss /= len(test_loader.dataset)
+        print(f'\nTest set: Average loss: {test_loss:.4f}, Accuracy: {correct}/{len(test_loader.dataset)} '
+              f'({100. * correct / len(test_loader.dataset):.0f}%)\n')
 
 if __name__ == '__main__':
     main()
