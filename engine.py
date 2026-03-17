@@ -170,9 +170,13 @@ class Trainer:
             
             sparsity = 0
             pruned_count = 0
+            active_connections = 0
+            active_neurons = 0
             if hasattr(self.model, 'get_sparsity'):
                 sparsity = self.model.get_sparsity()
                 pruned_count = self.model.get_pruned_count()
+                active_connections = self.model.get_active_connections()
+                active_neurons = self.model.get_active_neurons()
             
             self.history['train_loss'].append(train_loss)
             self.history['train_acc'].append(train_acc)
@@ -180,12 +184,15 @@ class Trainer:
             self.history['test_acc'].append(test_acc)
             self.history['sparsity'].append(sparsity)
             self.history['pruned_count'].append(pruned_count)
+            self.history.setdefault('active_connections', []).append(active_connections)
+            self.history.setdefault('active_neurons', []).append(active_neurons)
             
             duration = time.time() - start_time
             print(f"Epoch {epoch+1}/{num_epochs} | "
                   f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% | "
-                  f"Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}% | "
-                  f"Sparsity: {sparsity:.4f} | Time: {duration:.2f}s")
+                  f"Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
+            print(f"Metrics | Sparsity: {sparsity:.4f} | Pruned: {pruned_count} | "
+                  f"Active Conns: {active_connections} | Active Neurons: {active_neurons} | Time: {duration:.2f}s")
             
             self.save_checkpoint()
         

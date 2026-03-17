@@ -53,13 +53,9 @@ class HebbianMLP(nn.Module):
 
     def get_sparsity(self):
         """Returns the fraction of pruned connections."""
-        total_connections = 0
-        pruned_connections = 0
-        for m in self.modules():
-            if isinstance(m, MaskedLinear):
-                total_connections += m.mask.numel()
-                pruned_connections += (m.mask == 0).sum().item()
-        return pruned_connections / total_connections if total_connections > 0 else 0
+        total = self.get_total_connections()
+        pruned = self.get_pruned_count()
+        return pruned / total if total > 0 else 0
 
     def get_pruned_count(self):
         """Returns the total number of pruned connections."""
@@ -68,3 +64,29 @@ class HebbianMLP(nn.Module):
             if isinstance(m, MaskedLinear):
                 pruned_connections += (m.mask == 0).sum().item()
         return pruned_connections
+
+    def get_total_connections(self):
+        """Returns the total number of potential connections."""
+        total_connections = 0
+        for m in self.modules():
+            if isinstance(m, MaskedLinear):
+                total_connections += m.mask.numel()
+        return total_connections
+
+    def get_active_connections(self):
+        """Returns the number of connections that are NOT pruned."""
+        return self.get_total_connections() - self.get_pruned_count()
+
+    def get_active_neurons(self):
+        """
+        Returns the number of 'active' neurons in each layer.
+        A neuron is active if it has at least one non-zero connection coming into it.
+        """
+        active_neurons = 0
+        for m in self.modules():
+            if isinstance(m, MaskedLinear):
+                # m.mask has shape (out_features, in_features)
+                # A neuron (row) is active if any weight in its row is non-zero
+                active_rows = (m.mask.sum(dim=1) > 0).sum().item()
+                active_neurons += active_rows
+        return active_neurons

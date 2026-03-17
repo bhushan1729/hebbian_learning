@@ -63,7 +63,14 @@ This will save checkpoints and history results to `/content/drive/MyDrive/hebbia
 The training loop outputs:
 - **Loss and Accuracy** for both training and validation sets.
 - **Sparsity:** The fraction of total connections that have been pruned.
-- **Pruned Count:** Total number of connections cut.
+- **Pruned:** Total number of connections cut.
+- **Active Conns:** Number of connections currently active ($W_{eff} \neq 0$).
+- **Active Neurons:** Number of neurons that have at least one active incoming connection.
+
+### Baseline vs. Hebbian Comparison
+To see the difference in network complexity:
+1. Run the **Baseline**: Note that `Active Conns` and `Active Neurons` will remain constant (equal to full architecture).
+2. Run the **Hebbian**: Observe how `Active Conns` and `Active Neurons` decrease epoch-by-epoch as the network sparsifies.
 
 Results are saved as `.pth` checkpoints and `.json` history files in the `./results` directory.
 
