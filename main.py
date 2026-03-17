@@ -43,6 +43,10 @@ def main():
                         help='mode of operation: baseline, hebbian')
     parser.add_argument('--colab', action='store_true', default=False,
                         help='running in Google Colab environment')
+    parser.add_argument('--prune_interval', type=int, default=0,
+                        help='interval for pruning in hebbian mode (default: 0, no pruning)')
+    parser.add_argument('--prune_threshold', type=float, default=0.0,
+                        help='threshold for pruning in hebbian mode (default: 0.0, no pruning)')
     args = parser.parse_args()
 
     use_cuda = not args.no_cuda and torch.cuda.is_available()
