@@ -37,6 +37,29 @@ class BaselineMLP(nn.Module):
         x = self.fc3(x)
         return x
 
+    def get_sparsity(self):
+        return 0.0
+
+    def get_pruned_count(self):
+        return 0
+
+    def get_total_connections(self):
+        total = 0
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                total += m.weight.numel()
+        return total
+
+    def get_active_connections(self):
+        return self.get_total_connections()
+
+    def get_active_neurons(self):
+        active_neurons = 0
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                active_neurons += m.out_features
+        return active_neurons
+
 class HebbianMLP(nn.Module):
     def __init__(self, input_size=784, hidden_size=512, num_classes=10):
         super(HebbianMLP, self).__init__()

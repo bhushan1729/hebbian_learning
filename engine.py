@@ -144,6 +144,11 @@ class Trainer:
         return avg_loss, acc
 
     def prune(self):
+        # Check if model has any MaskedLinear layers to avoid printing in baseline mode
+        has_masked = any(isinstance(m, MaskedLinear) for m in self.model.modules())
+        if not has_masked:
+            return
+
         print(f"\nStep {self.step}: Pruning connections...")
         for name, module in self.model.named_modules():
             if isinstance(module, MaskedLinear) and name in self.importance_scores:
