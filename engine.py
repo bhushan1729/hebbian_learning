@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 import os
 import time
-from model import MaskedLinear
 
 class Trainer:
     def __init__(self, model, train_loader, test_loader, device, lr=0.01, 
@@ -25,7 +24,8 @@ class Trainer:
         self.history = {
             'train_loss': [], 'train_acc': [],
             'test_loss': [], 'test_acc': [],
-            'sparsity': [], 'pruned_count': []
+            'sparsity': [], 'pruned_count': [],
+            'active_connections': [], 'active_neurons': []
         }
         
         # Importance tracking
@@ -35,31 +35,21 @@ class Trainer:
 
     def _setup_hooks(self):
         def hook_fn(module, input, output):
-            # Input to the linear layer: x
-            # Output of the linear layer: y = xW^T + b
-            # We want importance = E[|input * grad_output|]
             module._current_input = input[0].detach()
 
         def backward_hook_fn(module, grad_input, grad_output):
-            # grad_output[0] is the gradient w.r.t layer output y
             x = module._current_input
             dy = grad_output[0].detach()
-            
-            # importance for this batch: E[|x_i * dy_j|]
-            # dy has shape (batch, out_features)
-            # x has shape (batch, in_features)
-            # batch_importance has shape (out_features, in_features)
             batch_importance = torch.matmul(dy.abs().t(), x.abs()) / x.size(0)
             
             name = module._layer_name
             if name not in self.importance_scores:
                 self.importance_scores[name] = torch.zeros_like(batch_importance)
-            
-            # Simple EMA or accumulation. Here let's accumulate and average over interval.
             self.importance_scores[name] += batch_importance
 
         for name, module in self.model.named_modules():
-            if isinstance(module, MaskedLinear):
+            # Use hasattr for robustness
+            if hasattr(module, 'mask'):
                 module._layer_name = name
                 self.hooks.append(module.register_forward_hook(hook_fn))
                 self.hooks.append(module.register_full_backward_hook(backward_hook_fn))
@@ -115,9 +105,7 @@ class Trainer:
             correct += predicted.eq(target).sum().item()
             
             self.step += 1
-            
-            # Pruning Logic
-            if self.step % self.prune_interval == 0:
+            if self.prune_interval > 0 and self.step % self.prune_interval == 0:
                 self.prune()
             
         avg_loss = total_loss / len(self.train_loader)
@@ -144,30 +132,25 @@ class Trainer:
         return avg_loss, acc
 
     def prune(self):
-        # Check if model has any MaskedLinear layers to avoid printing in baseline mode
-        has_masked = any(isinstance(m, MaskedLinear) for m in self.model.modules())
+        # Only prune if there are Masked layers
+        has_masked = any(hasattr(m, 'mask') for m in self.model.modules())
         if not has_masked:
             return
 
         print(f"\nStep {self.step}: Pruning connections...")
         for name, module in self.model.named_modules():
-            if isinstance(module, MaskedLinear) and name in self.importance_scores:
-                # Calculate average importance over the interval
+            if hasattr(module, 'mask') and name in self.importance_scores:
                 avg_importance = self.importance_scores[name] / self.prune_interval
-                
-                # Prune
                 before_pruned = (module.mask == 0).sum().item()
-                module.prune(avg_importance, self.prune_threshold)
+                if hasattr(module, 'prune'):
+                    module.prune(avg_importance, self.prune_threshold)
                 after_pruned = (module.mask == 0).sum().item()
-                
                 print(f"Layer {name}: Pruned {after_pruned - before_pruned} connections. Total pruned: {after_pruned}")
-                
-                # Reset importance scores for next interval
                 self.importance_scores[name].zero_()
 
     def run(self, num_epochs):
         for epoch in range(self.epoch, num_epochs):
-            self.epoch = epoch
+            self.epoch = epoch + 1 # Set to next epoch for potential resume
             start_time = time.time()
             
             train_loss, train_acc = self.train_epoch()
@@ -177,6 +160,8 @@ class Trainer:
             pruned_count = 0
             active_connections = 0
             active_neurons = 0
+            
+            # Robust extraction of metrics
             if hasattr(self.model, 'get_sparsity'):
                 sparsity = self.model.get_sparsity()
                 pruned_count = self.model.get_pruned_count()

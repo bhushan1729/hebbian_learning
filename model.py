@@ -17,6 +17,8 @@ class MaskedLinear(nn.Linear):
         Update the mask based on importance and threshold.
         Connections with importance <= threshold are permanently pruned (set to 0).
         """
+        if not hasattr(self, 'mask'):
+            return
         with torch.no_grad():
             new_mask = (importance > threshold).float()
             # Ensure once pruned, it stays pruned
@@ -46,8 +48,10 @@ class BaselineMLP(nn.Module):
     def get_total_connections(self):
         total = 0
         for m in self.modules():
-            if isinstance(m, nn.Linear):
-                total += m.weight.numel()
+            # Use hasattr for robustness against class identity issues
+            if hasattr(m, 'weight') and not isinstance(m, (BaselineMLP, HebbianMLP)):
+                if m.weight is not None:
+                    total += m.weight.numel()
         return total
 
     def get_active_connections(self):
@@ -56,7 +60,7 @@ class BaselineMLP(nn.Module):
     def get_active_neurons(self):
         active_neurons = 0
         for m in self.modules():
-            if isinstance(m, nn.Linear):
+            if hasattr(m, 'out_features') and not isinstance(m, (BaselineMLP, HebbianMLP)):
                 active_neurons += m.out_features
         return active_neurons
 
@@ -75,41 +79,32 @@ class HebbianMLP(nn.Module):
         return x
 
     def get_sparsity(self):
-        """Returns the fraction of pruned connections."""
         total = self.get_total_connections()
         pruned = self.get_pruned_count()
         return pruned / total if total > 0 else 0
 
     def get_pruned_count(self):
-        """Returns the total number of pruned connections."""
         pruned_connections = 0
         for m in self.modules():
-            if isinstance(m, MaskedLinear):
+            if hasattr(m, 'mask'):
                 pruned_connections += (m.mask == 0).sum().item()
         return pruned_connections
 
     def get_total_connections(self):
-        """Returns the total number of potential connections."""
         total_connections = 0
         for m in self.modules():
-            if isinstance(m, MaskedLinear):
+            if hasattr(m, 'mask'):
                 total_connections += m.mask.numel()
         return total_connections
 
     def get_active_connections(self):
-        """Returns the number of connections that are NOT pruned."""
         return self.get_total_connections() - self.get_pruned_count()
 
     def get_active_neurons(self):
-        """
-        Returns the number of 'active' neurons in each layer.
-        A neuron is active if it has at least one non-zero connection coming into it.
-        """
         active_neurons = 0
         for m in self.modules():
-            if isinstance(m, MaskedLinear):
+            if hasattr(m, 'mask'):
                 # m.mask has shape (out_features, in_features)
-                # A neuron (row) is active if any weight in its row is non-zero
                 active_rows = (m.mask.sum(dim=1) > 0).sum().item()
                 active_neurons += active_rows
         return active_neurons

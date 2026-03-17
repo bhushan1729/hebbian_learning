@@ -7,14 +7,14 @@ from model import BaselineMLP, HebbianMLP
 from engine import Trainer
 
 def main():
-    parser = argparse.ArgumentParser(description='Hebbian-Inspired Pruning experiment')
-    parser.add_argument('--batch_size', type=int, default=64, help='input batch size for training (default: 64)')
-    parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train (default: 10)')
-    parser.add_argument('--lr', type=float, default=0.001, help='learning rate (default: 0.001)')
+    parser = argparse.ArgumentParser(description='Hebbian-Inspired Pruning Experiment')
+    parser.add_argument('--batch_size', type=int, default=64, help='input batch size for training')
+    parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train')
+    parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
     parser.add_argument('--mode', type=str, default='hebbian', choices=['baseline', 'hebbian'], help='mode: baseline, hebbian')
     parser.add_argument('--colab', action='store_true', help='running in Google Colab environment')
-    parser.add_argument('--prune_interval', type=int, default=500, help='interval for pruning (default: 500)')
-    parser.add_argument('--prune_threshold', type=float, default=0.0001, help='threshold for pruning (default: 0.0001)')
+    parser.add_argument('--prune_interval', type=int, default=500, help='interval for pruning')
+    parser.add_argument('--prune_threshold', type=float, default=0.0001, help='threshold for pruning')
     parser.add_argument('--dataset', type=str, default='MNIST', choices=['MNIST', 'CIFAR10'], help='Dataset to use')
     parser.add_argument('--data_dir', type=str, default='./data', help='Directory for datasets')
     parser.add_argument('--output_dir', type=str, default='./results', help='Directory for results')
@@ -23,17 +23,18 @@ def main():
 
     # Handle Colab specific paths
     if args.colab:
-        # Assuming data will be in /content/drive/MyDrive/hebbian_learning
-        # We try to mount but keep it non-blocking
         try:
             from google.colab import drive
             if not os.path.exists('/content/drive'):
+                print("Mounting Google Drive...")
                 drive.mount('/content/drive')
+            
             drive_path = '/content/drive/MyDrive/hebbian_learning'
             args.data_dir = os.path.join(drive_path, 'data')
             args.output_dir = os.path.join(drive_path, 'results')
-        except:
-            print("Colab environment or Drive mounting issues. Using local paths.")
+            print(f"Colab mode active. Data: {args.data_dir}, Results: {args.output_dir}")
+        except Exception as e:
+            print(f"Colab Drive mounting issue: {e}. Using local paths.")
 
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
@@ -48,12 +49,11 @@ def main():
     input_size = 784 if args.dataset == 'MNIST' else 3072
     if args.mode == 'baseline':
         model = BaselineMLP(input_size=input_size)
-        ckpt_name = f"baseline_{args.dataset}.pth"
     else:
         model = HebbianMLP(input_size=input_size)
-        ckpt_name = f"hebbian_{args.dataset}.pth"
 
-    checkpoint_path = os.path.join(args.output_dir, ckpt_name)
+    checkpoint_name = f"{args.mode}_{args.dataset}.pth"
+    checkpoint_path = os.path.join(args.output_dir, checkpoint_name)
     
     # Initialize Trainer
     trainer = Trainer(
@@ -78,9 +78,6 @@ def main():
     with open(history_file, 'w') as f:
         json.dump(history, f, indent=4)
     print(f"Final history saved to {history_file}")
-
-if __name__ == '__main__':
-    main()
 
 if __name__ == '__main__':
     main()
