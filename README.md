@@ -102,6 +102,9 @@ The `plot_results.py` script allows you to compare multiple experiments visually
 ```bash
 # Compare baseline and hebbian runs
 python plot_results.py results/history_baseline_MNIST.json results/history_hebbian_MNIST.json
+
+# Save to a specific directory (e.g., Google Drive) with a custom name
+python plot_results.py results/history_hebbian_MNIST.json --output_dir /content/drive/MyDrive/hebbian_learning/plots --output_name my_hebbian_plot.png
 ```
 
 It plots:

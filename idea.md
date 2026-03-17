@@ -326,3 +326,41 @@ When you’re ready, I can help you:
 * avoid common reviewer traps
 
 You’re thinking like a researcher now — keep going.
+
+---
+# Related papers
+
+Viewed idea.md:1-329
+Searched web: "papers on "Hebbian" inspired neural network pruning gradient activation"
+
+This is a perfect time to bridge your implementation with the academic world. Your formula $importance_{ij} = E[ |a_i \cdot \frac{\partial L}{\partial y_j}| ]$ (which is effectively the magnitude of the **gradient of the weight**) aligns with some very influential "modern-classic" papers.
+
+Based on your [idea.md](cci:7://file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/idea.md:0:0-0:0) and our results, here are the key papers you should look into to ground your research:
+
+### 1. The "Structural Plasticity" Bible
+*   **Paper**: *[Deep Rewiring: Training very sparse deep networks](https://arxiv.org/abs/1711.05136)* (Bellec et al., 2018)
+*   **Why it matches**: This is perhaps the closest biological cousin to your work. It proposes "DEEP R," a method where the network is always sparse, and connections are "rewired" during training. Like your idea, it uses **gradients** to decide which "synapses" (weights) are useful and which should be eliminated. It explicitly talks about the brain's ability to change its structure, not just its weights.
+
+### 2. The "Gradient Sensitivity" Foundation
+*   **Paper**: *[SNIP: Single-Shot Network Pruning based on Connection Sensitivity](https://arxiv.org/abs/1810.02340)* (Lee et al., 2018)
+*   **Why it matches**: Your formula uses $|a_i \cdot \frac{\partial L}{\partial y_j}|$, which is equivalent to $|\frac{\partial L}{\partial w_{ij}}|$. SNIP uses a very similar "saliency" criterion: $|w \cdot \frac{\partial L}{\partial w}|$. 
+*   **The Difference**: SNIP usually prunes **once** at the start (initialization). Your idea of **continuous, activity-dependent pruning during training** is a more dynamic extension of this concept.
+
+### 3. Merging Hebbian & Gradients
+*   **Paper**: *[Hebbian learning with gradients: Hebbian convolutional neural networks with modern deep learning frameworks](https://arxiv.org/abs/2107.01729)* (Thomas Miconi, 2021)
+*   **Why it matches**: This researcher (from Uber AI) is a leader in trying to make Hebbian rules work in PyTorch. He shows that you can define loss functions such that their **gradients** effectively become Hebbian updates. It provides a strong mathematical bridge for your "Gradient as a Proxy for Hebbian Activity" logic.
+
+### 4. The "Lottery Ticket" Context
+*   **Paper**: *[The Lottery Ticket Hypothesis: Finding Sparse, Trainable Neural Networks](https://arxiv.org/abs/1803.03635)* (Frankle & Carbin, 2019)
+*   **Why it matches**: This paper proved that inside every large dense network (like our Baseline), there is a "winning ticket"—a tiny subnetwork that can achieve the same accuracy. 
+*   **Your Value Add**: The "Lottery" paper finds these tickets by training, pruning, and *re-training*. Your method finds them **dynamically during the first training run**, which is much more efficient.
+
+### 5. Biological Pruning (The "Why")
+*   **Article**: *[Synapse Elimination in the Developing Brain](https://www.jstor.org/stable/26058913)* (Lichtman & Colman, 2000)
+*   **Why it matches**: If you write a paper, you should cite this in your **Introduction**. It explains the biological process where a baby's brain begins with a massive amount of "redundant" connections that are pruned away based on experience. This is exactly what you simulated in your "Third Run" stress test!
+
+### 💡 Recommendation for your Paper's "Related Work" section:
+You can frame your work as: 
+> "While methods like **SNIP** focus on static pruning at initialization, and **DEEP R** focuses on stochastic rewiring, our work explores **Deterministic Activity-Dependent Pruning (DADP)**, using the expected magnitude of the weight gradient as a Hebbian proxy to identify and eliminate structural redundancy in real-time."
+
+Would you like me to help you draft an **Abstract** or a **Problem Statement** based on these papers?

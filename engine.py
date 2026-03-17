@@ -25,7 +25,12 @@ class Trainer:
             'train_loss': [], 'train_acc': [],
             'test_loss': [], 'test_acc': [],
             'sparsity': [], 'pruned_count': [],
-            'active_connections': [], 'active_neurons': []
+            'active_connections': [], 'active_neurons': [],
+            'config': {
+                'prune_threshold': self.prune_threshold,
+                'prune_interval': self.prune_interval,
+                'lr': self.lr
+            }
         }
         
         # Importance tracking
