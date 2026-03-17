@@ -18,23 +18,20 @@ def main():
     parser.add_argument('--dataset', type=str, default='MNIST', choices=['MNIST', 'CIFAR10'], help='Dataset to use')
     parser.add_argument('--data_dir', type=str, default='./data', help='Directory for datasets')
     parser.add_argument('--output_dir', type=str, default='./results', help='Directory for results')
+    parser.add_argument('--exp_name', type=str, default=None, help='Custom name for this experiment run')
     
     args = parser.parse_args()
 
     # Handle Colab specific paths
     if args.colab:
         try:
-            from google.colab import drive
-            if not os.path.exists('/content/drive'):
-                print("Mounting Google Drive...")
-                drive.mount('/content/drive')
-            
+            # We skip interactive mount here as requested, user will mount manually
             drive_path = '/content/drive/MyDrive/hebbian_learning'
             args.data_dir = os.path.join(drive_path, 'data')
             args.output_dir = os.path.join(drive_path, 'results')
             print(f"Colab mode active. Data: {args.data_dir}, Results: {args.output_dir}")
         except Exception as e:
-            print(f"Colab Drive mounting issue: {e}. Using local paths.")
+            print(f"Colab pathing issue: {e}. Using local paths.")
 
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
@@ -52,7 +49,9 @@ def main():
     else:
         model = HebbianMLP(input_size=input_size)
 
-    checkpoint_name = f"{args.mode}_{args.dataset}.pth"
+    # Naming logic
+    base_name = args.exp_name if args.exp_name else f"{args.mode}_{args.dataset}"
+    checkpoint_name = f"{base_name}.pth"
     checkpoint_path = os.path.join(args.output_dir, checkpoint_name)
     
     # Initialize Trainer
@@ -74,7 +73,7 @@ def main():
     history = trainer.run(args.epochs)
 
     # Save History
-    history_file = os.path.join(args.output_dir, f"history_{args.mode}_{args.dataset}.json")
+    history_file = os.path.join(args.output_dir, f"history_{base_name}.json")
     with open(history_file, 'w') as f:
         json.dump(history, f, indent=4)
     print(f"Final history saved to {history_file}")

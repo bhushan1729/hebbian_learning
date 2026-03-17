@@ -33,29 +33,30 @@ Where:
 pip install torch torchvision
 ```
 
-## 📊 Running Experiments
+### 🧪 How to Run
 
-You can run two types of experiments: `baseline` (standard MLP) and `hebbian` (masked MLP with pruning).
+> [!NOTE]
+> If running in Google Colab, please **manually mount your Google Drive** before running the script. The script will look for a folder named `hebbian_learning` in your `MyDrive`.
 
-### 1. Baseline Experiment
-To train a standard dense network on MNIST:
+#### 1️⃣ Baseline Training
 ```bash
-python main.py --mode baseline --epochs 10
+python main.py --mode baseline --epochs 10 --exp_name my_baseline_run
 ```
 
-### 2. Hebbian Pruning Experiment
-To train with activity-dependent pruning:
+#### 2️⃣ Hebbian Pruning Experiment
 ```bash
-python main.py --mode hebbian --epochs 10 --prune_interval 500 --prune_threshold 0.0001
+python main.py --mode hebbian --epochs 10 --prune_threshold 0.000001 --exp_name hebbian_gentle_prune
 ```
 
-### ☁️ Google Colab Usage
-If you are running in Google Colab with GPU support, use the `--colab` flag to automatically mount Google Drive and save results there.
-
-```python
-# In a Colab cell:
-!python main.py --colab --mode hebbian --epochs 20
-```
+### 🛠️ CLI Arguments
+| Argument | Default | Description |
+| :--- | :--- | :--- |
+| `--mode` | `hebbian` | `baseline` or `hebbian` |
+| `--dataset` | `MNIST` | `MNIST` or `CIFAR10` |
+| `--exp_name` | `None` | Custom name for .pth and .json files |
+| `--prune_interval` | `500` | Steps between pruning updates |
+| `--prune_threshold`| `0.0001`| Importance cutoff for pruning |
+| `--colab` | `False` | Enable Google Colab pathing |
 This will save checkpoints and history results to `/content/drive/MyDrive/hebbian_learning/`.
 
 ## 📈 Monitoring Results
