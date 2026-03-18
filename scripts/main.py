@@ -3,7 +3,7 @@ import os
 import torch
 import json
 from data_loader import get_data_loaders
-from model import BaselineMLP, HebbianMLP
+from model import BaselineMLP, HebbianMLP, BaselineCNN, HebbianCNN
 from engine import Trainer
 
 def main():
@@ -12,6 +12,7 @@ def main():
     parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train')
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
     parser.add_argument('--mode', type=str, default='hebbian', choices=['baseline', 'hebbian'], help='mode: baseline, hebbian')
+    parser.add_argument('--arch', type=str, default='mlp', choices=['mlp', 'cnn'], help='architecture: mlp, cnn')
     parser.add_argument('--colab', action='store_true', help='running in Google Colab environment')
     parser.add_argument('--prune_interval', type=int, default=500, help='interval for pruning')
     parser.add_argument('--prune_threshold', type=float, default=0.0001, help='threshold for pruning')
@@ -25,7 +26,7 @@ def main():
     # Handle Colab specific paths
     if args.colab:
         try:
-            # We skip interactive mount here as requested, user will mount manually
+            # We skip interactive mount here, user will mount manually
             drive_path = '/content/drive/MyDrive/hebbian_learning'
             args.data_dir = os.path.join(drive_path, 'data')
             args.output_dir = os.path.join(drive_path, 'results')
@@ -43,14 +44,29 @@ def main():
     train_loader, test_loader = get_data_loaders(args.dataset, args.batch_size, args.data_dir)
 
     # Initialize Model
+    num_classes = 10
+    input_channels = 1 if args.dataset == 'MNIST' else 3
     input_size = 784 if args.dataset == 'MNIST' else 3072
-    if args.mode == 'baseline':
-        model = BaselineMLP(input_size=input_size)
-    else:
-        model = HebbianMLP(input_size=input_size)
+    fc_input_dim = 3136 if args.dataset == 'MNIST' else 4096
+
+    if args.arch == 'mlp':
+        if args.mode == 'baseline':
+            model = BaselineMLP(input_size=input_size, num_classes=num_classes)
+        else:
+            model = HebbianMLP(input_size=input_size, num_classes=num_classes)
+    else: # cnn
+        if args.mode == 'baseline':
+            model = BaselineCNN(input_channels=input_channels, num_classes=num_classes, fc_input_dim=fc_input_dim)
+        else:
+            model = HebbianCNN(input_channels=input_channels, num_classes=num_classes, fc_input_dim=fc_input_dim)
 
     # Naming logic
-    base_name = args.exp_name if args.exp_name else f"{args.mode}_{args.dataset}"
+    if args.exp_name:
+        base_name = args.exp_name
+    else:
+        base_name = f"{args.mode}_{args.arch}_{args.dataset}"
+        if args.mode == 'hebbian':
+            base_name += f"_thr{args.prune_threshold}"
     checkpoint_name = f"{base_name}.pth"
     checkpoint_path = os.path.join(args.output_dir, checkpoint_name)
     

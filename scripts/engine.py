@@ -45,7 +45,18 @@ class Trainer:
         def backward_hook_fn(module, grad_input, grad_output):
             x = module._current_input
             dy = grad_output[0].detach()
-            batch_importance = torch.matmul(dy.abs().t(), x.abs()) / x.size(0)
+            
+            if isinstance(module, nn.Conv2d):
+                # For Conv2d, importance is calculated using the weight-wise gradient logic
+                # using absolute values of activations and gradients.
+                batch_importance = torch.nn.grad.conv2d_weight(
+                    x.abs(), module.weight.shape, dy.abs(),
+                    stride=module.stride, padding=module.padding, 
+                    dilation=module.dilation, groups=module.groups
+                ) / x.size(0)
+            else:
+                # Linear layer logic
+                batch_importance = torch.matmul(dy.abs().t(), x.abs()) / x.size(0)
             
             name = module._layer_name
             if name not in self.importance_scores:
