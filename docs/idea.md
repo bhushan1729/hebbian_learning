@@ -335,7 +335,7 @@ Searched web: "papers on "Hebbian" inspired neural network pruning gradient acti
 
 This is a perfect time to bridge your implementation with the academic world. Your formula $importance_{ij} = E[ |a_i \cdot \frac{\partial L}{\partial y_j}| ]$ (which is effectively the magnitude of the **gradient of the weight**) aligns with some very influential "modern-classic" papers.
 
-Based on your [idea.md](cci:7://file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/idea.md:0:0-0:0) and our results, here are the key papers you should look into to ground your research:
+Based on your [idea.md](idea.md) and our results, here are the key papers you should look into to ground your research:
 
 ### 1. The "Structural Plasticity" Bible
 *   **Paper**: *[Deep Rewiring: Training very sparse deep networks](https://arxiv.org/abs/1711.05136)* (Bellec et al., 2018)

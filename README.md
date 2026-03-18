@@ -53,12 +53,12 @@ The project uses a 3-layer MLP (Multi-Layer Perceptron) for MNIST classification
 
 #### 1️⃣ Baseline Training
 ```bash
-python main.py --mode baseline --epochs 10 --exp_name my_baseline_run
+python scripts/main.py --mode baseline --epochs 10 --exp_name my_baseline_run
 ```
 
 #### 2️⃣ Hebbian Pruning Experiment
 ```bash
-python main.py --mode hebbian --epochs 10 --prune_threshold 0.000001 --exp_name hebbian_gentle_prune
+python scripts/main.py --mode hebbian --epochs 10 --prune_threshold 0.000001 --exp_name hebbian_gentle_prune
 ```
 
 ### 🛠️ CLI Arguments
@@ -101,10 +101,10 @@ The `plot_results.py` script allows you to compare multiple experiments visually
 
 ```bash
 # Compare baseline and hebbian runs
-python plot_results.py results/history_baseline_MNIST.json results/history_hebbian_MNIST.json
+python scripts/plot_results.py results/history_baseline_MNIST.json results/history_hebbian_MNIST.json
 
 # Save to a specific directory (e.g., Google Drive) with a custom name
-python plot_results.py results/history_hebbian_MNIST.json --output_dir /content/drive/MyDrive/hebbian_learning/plots --output_name my_hebbian_plot.png
+python scripts/plot_results.py results/history_hebbian_MNIST.json --output_dir /content/drive/MyDrive/hebbian_learning/plots --output_name my_hebbian_plot.png
 ```
 
 It plots:
