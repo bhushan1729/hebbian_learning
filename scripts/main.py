@@ -26,10 +26,11 @@ def main():
     # Handle Colab specific paths
     if args.colab:
         try:
-            # We skip interactive mount here, user will mount manually
             drive_path = '/content/drive/MyDrive/hebbian_learning'
-            args.data_dir = os.path.join(drive_path, 'data')
-            args.output_dir = os.path.join(drive_path, 'results')
+            if args.data_dir == './data':
+                args.data_dir = os.path.join(drive_path, 'data')
+            if args.output_dir == './results':
+                args.output_dir = os.path.join(drive_path, 'results')
             print(f"Colab mode active. Data: {args.data_dir}, Results: {args.output_dir}")
         except Exception as e:
             print(f"Colab pathing issue: {e}. Using local paths.")
