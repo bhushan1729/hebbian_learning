@@ -38,6 +38,11 @@ def main():
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
+    # For baseline mode, ensure pruning params are zeroed in metadata
+    if args.mode == 'baseline':
+        args.prune_interval = 0
+        args.prune_threshold = 0.0
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
