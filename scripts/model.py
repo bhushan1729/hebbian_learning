@@ -98,7 +98,7 @@ class HebbianMLP(nn.Module):
         pruned_connections = 0
         for m in self.modules():
             if hasattr(m, 'mask'):
-                pruned_connections += (m.mask == 0).sum().item()
+                pruned_connections += torch.sum(m.mask == 0).item()
         return pruned_connections
 
     def get_total_connections(self):
@@ -196,7 +196,7 @@ class HebbianCNN(nn.Module):
         pruned = 0
         for m in self.modules():
             if hasattr(m, 'mask'):
-                pruned += (m.mask == 0).sum().item()
+                pruned += torch.sum(m.mask == 0).item()
         return pruned
 
     def get_total_connections(self):
@@ -205,6 +205,123 @@ class HebbianCNN(nn.Module):
             if hasattr(m, 'mask'):
                 total += m.mask.numel()
         return total
+
+    def get_active_connections(self):
+        return self.get_total_connections() - self.get_pruned_count()
+
+    def get_active_neurons(self):
+        active_neurons = 0
+        for m in self.modules():
+            if hasattr(m, 'mask'):
+                mask_flat = m.mask.view(m.mask.size(0), -1)
+                active_rows = (mask_flat.sum(dim=1) > 0).sum().item()
+                active_neurons += active_rows
+        return active_neurons
+
+class BaselineVGG16(nn.Module):
+    def __init__(self, input_channels=3, num_classes=10):
+        super(BaselineVGG16, self).__init__()
+        self.features = self._make_layers(input_channels)
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.classifier = nn.Sequential(
+            nn.Linear(512, 512),
+            nn.ReLU(True),
+            nn.Dropout(),
+            nn.Linear(512, 512),
+            nn.ReLU(True),
+            nn.Dropout(),
+            nn.Linear(512, num_classes),
+        )
+
+    def _make_layers(self, input_channels):
+        layers = []
+        cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M']
+        in_channels = input_channels
+        for v in cfg:
+            if v == 'M':
+                layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+            else:
+                conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1)
+                layers += [conv2d, nn.ReLU(inplace=True)]
+                in_channels = v
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.avgpool(x)
+        x = x.view(x.size(0), -1)
+        x = self.classifier(x)
+        return x
+
+    def get_sparsity(self): return 0.0
+    def get_pruned_count(self): return 0
+    def get_total_connections(self):
+        total = 0
+        for m in self.modules():
+            if isinstance(m, (nn.Linear, nn.Conv2d)):
+                total += m.weight.numel()
+        return total
+    def get_active_connections(self): return self.get_total_connections()
+    def get_active_neurons(self):
+        active_neurons = 0
+        for m in self.modules():
+            if hasattr(m, 'out_features'): active_neurons += m.out_features
+            elif hasattr(m, 'out_channels'): active_neurons += m.out_channels
+        return active_neurons
+
+class HebbianVGG16(nn.Module):
+    def __init__(self, input_channels=3, num_classes=10):
+        super(HebbianVGG16, self).__init__()
+        self.features = self._make_layers(input_channels)
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.classifier = nn.Sequential(
+            MaskedLinear(512, 512),
+            nn.ReLU(True),
+            nn.Dropout(),
+            MaskedLinear(512, 512),
+            nn.ReLU(True),
+            nn.Dropout(),
+            MaskedLinear(512, num_classes),
+        )
+
+    def _make_layers(self, input_channels):
+        layers = []
+        cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M']
+        in_channels = input_channels
+        for v in cfg:
+            if v == 'M':
+                layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+            else:
+                conv2d = MaskedConv2d(in_channels, v, kernel_size=3, padding=1)
+                layers += [conv2d, nn.ReLU(inplace=True)]
+                in_channels = v
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.avgpool(x)
+        x = x.view(x.size(0), -1)
+        x = self.classifier(x)
+        return x
+
+    def get_sparsity(self):
+        total = self.get_total_connections()
+        pruned = self.get_pruned_count()
+        return pruned / total if total > 0 else 0
+
+    def get_pruned_count(self):
+        pruned_connections = 0
+        for m in self.modules():
+            if hasattr(m, 'mask'):
+                pruned_connections += torch.sum(m.mask == 0).item()
+        return pruned_connections
+
+    def get_total_connections(self):
+        total_connections = 0
+        for m in self.modules():
+            if hasattr(m, 'mask'):
+                total_connections += m.mask.numel()
+        return total_connections
 
     def get_active_connections(self):
         return self.get_total_connections() - self.get_pruned_count()

@@ -3,7 +3,7 @@ import os
 import torch
 import json
 from data_loader import get_data_loaders
-from model import BaselineMLP, HebbianMLP, BaselineCNN, HebbianCNN
+from model import BaselineMLP, HebbianMLP, BaselineCNN, HebbianCNN, BaselineVGG16, HebbianVGG16
 from engine import Trainer
 
 def main():
@@ -12,7 +12,7 @@ def main():
     parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train')
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
     parser.add_argument('--mode', type=str, default='hebbian', choices=['baseline', 'hebbian'], help='mode: baseline, hebbian')
-    parser.add_argument('--arch', type=str, default='mlp', choices=['mlp', 'cnn'], help='architecture: mlp, cnn')
+    parser.add_argument('--arch', type=str, default='mlp', choices=['mlp', 'cnn', 'vgg16'], help='architecture: mlp, cnn, vgg16')
     parser.add_argument('--colab', action='store_true', help='running in Google Colab environment')
     parser.add_argument('--prune_interval', type=int, default=500, help='interval for pruning')
     parser.add_argument('--prune_threshold', type=float, default=0.0001, help='threshold for pruning')
@@ -60,11 +60,16 @@ def main():
             model = BaselineMLP(input_size=input_size, num_classes=num_classes)
         else:
             model = HebbianMLP(input_size=input_size, num_classes=num_classes)
-    else: # cnn
+    elif args.arch == 'cnn':
         if args.mode == 'baseline':
             model = BaselineCNN(input_channels=input_channels, num_classes=num_classes, fc_input_dim=fc_input_dim)
         else:
             model = HebbianCNN(input_channels=input_channels, num_classes=num_classes, fc_input_dim=fc_input_dim)
+    elif args.arch == 'vgg16':
+        if args.mode == 'baseline':
+            model = BaselineVGG16(input_channels=input_channels, num_classes=num_classes)
+        else:
+            model = HebbianVGG16(input_channels=input_channels, num_classes=num_classes)
 
     # Naming logic
     if args.exp_name:
