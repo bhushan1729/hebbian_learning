@@ -225,10 +225,10 @@ class BaselineVGG16(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.classifier = nn.Sequential(
             nn.Linear(512, 512),
-            nn.ReLU(True),
+            nn.ReLU(False),
             nn.Dropout(),
             nn.Linear(512, 512),
-            nn.ReLU(True),
+            nn.ReLU(False),
             nn.Dropout(),
             nn.Linear(512, num_classes),
         )
@@ -242,7 +242,7 @@ class BaselineVGG16(nn.Module):
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             else:
                 conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1)
-                layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU(inplace=True)]
+                layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU(inplace=False)]
                 in_channels = v
         return nn.Sequential(*layers)
 
@@ -276,10 +276,10 @@ class HebbianVGG16(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.classifier = nn.Sequential(
             MaskedLinear(512, 512),
-            nn.ReLU(True),
+            nn.ReLU(False),
             nn.Dropout(),
             MaskedLinear(512, 512),
-            nn.ReLU(True),
+            nn.ReLU(False),
             nn.Dropout(),
             MaskedLinear(512, num_classes),
         )
@@ -293,7 +293,7 @@ class HebbianVGG16(nn.Module):
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             else:
                 conv2d = MaskedConv2d(in_channels, v, kernel_size=3, padding=1)
-                layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU(inplace=True)]
+                layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU(inplace=False)]
                 in_channels = v
         return nn.Sequential(*layers)
 
