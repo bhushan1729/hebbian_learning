@@ -6,6 +6,7 @@ from data_loader import get_data_loaders
 from model import BaselineMLP, HebbianMLP, BaselineCNN, HebbianCNN, BaselineVGG16, HebbianVGG16
 from engine import Trainer
 
+# Main execution function for Hebbian pruning experiments
 def main():
     parser = argparse.ArgumentParser(description='Hebbian-Inspired Pruning Experiment')
     parser.add_argument('--batch_size', type=int, default=64, help='input batch size for training')
