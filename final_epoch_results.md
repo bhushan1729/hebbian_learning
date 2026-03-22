@@ -99,3 +99,20 @@ This document summarizes the final results for MNIST pruning experiments. **$\De
 | **Final Train Acc** | 79.95% | 80.10% | +0.15% | **81.03%** | **+1.08%** | 10.03% | -69.92% |
 | **Final Test Acc** | 50.52% | 51.97% | +1.45% | **52.72%** | **+2.20%** | 10.00% | -40.52% |
 | **Peak Test Acc** | 52.42% | 52.93% | +0.51% | **53.69%** | **+1.27%** | 44.17% | -8.25% |
+
+---
+
+## VGG16 CIFAR-10 Experiments
+
+### VGG16 CIFAR-10 (20 Epochs)
+| Metric | Baseline | Hebbian (1e-6) | $\Delta$ | Hebbian (1e-5) | $\Delta$ | Hebbian (1e-4) | $\Delta$ |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Final Sparsity** | 0.0% | 71.60% | +71.60% | TBD | - | TBD | - |
+| **Active Connections** | 15,239,872 | 4,328,264 | -71.6% | TBD | - | TBD | - |
+| **Active Neurons** | **5,258** | 4,742 | -9.8% | TBD | - | TBD | - |
+| **Final Train Acc** | **95.66%** | 95.50% | -0.16% | TBD | - | TBD | - |
+| **Final Test Acc** | 84.46% | **85.16%** | **+0.70%** | TBD | - | TBD | - |
+| **Peak Test Acc** | **85.31%** | 85.16% | -0.15% | TBD | - | TBD | - |
+
+> [!NOTE]
+> **Observation**: The Hebbian (1e-6) pruning stage for VGG16 on CIFAR-10 successfully reduced the model size by over **71%** while actually **increasing** the final test accuracy by **0.70%**. This suggests that Hebbian pruning is acting as an effective regularizer for the deep VGG16 architecture.
