@@ -39,3 +39,33 @@ Our pruning logic is the "Negative Hebbian" version for efficiency:
 3.  **Result:** If either side is "bored," the connection is structural dead weight. **Prune it.**
 
 By using the gradient as the "post-synaptic" signal, we ensure the network only keeps connections that are **actively helping it reduce the loss.**
+
+---
+
+
+
+I've analyzed the implementation in [model.py](cci:7://file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/scripts/model.py:0:0-0:0) and [engine.py](cci:7://file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/scripts/engine.py:0:0-0:0) to clarify your doubt. Here is how the pruning logic works:
+
+### 1. **Connection-level (Weight) Masking**
+The primary mechanism is **unstructured weight pruning**. Each individual connection $W_{ij}$ has its own importance score and its own entry in a binary **mask**.
+*   **The logic**: We are not just deleting entire neurons; we are deleting (masking) specific connections between them.
+*   **The realization**: If you have a neuron $i$ connected to neuron $j$, the importance formula $E[ |a_i \cdot \frac{\partial L}{\partial y_j}| ]$ tells us exactly how much that specific "wire" contributes to the network's output. 
+
+### 2. **Neuron "Death" as a Side Effect**
+While we prune individual connections, a neuron is effectively **"deleted"** as an emergent property of the algorithm:
+*   **Incoming Pruning**: if all connections leading *into* a neuron are masked to zero, that neuron never fires ($a_j = 0$).
+*   **Outgoing Pruning**: if all connections leading *out* of a neuron are masked, its activity never reaches the next layer.
+
+The code tracks this in [model.py](cci:7://file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/scripts/model.py:0:0-0:0) using [get_active_neurons()](cci:1://file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/scripts/model.py:68:4-75:29). It specifically counts a neuron as "active" only if it has **at least one** non-zero incoming connection:
+```python
+# From scripts/model.py
+mask_flat = m.mask.view(m.mask.size(0), -1)
+active_rows = (mask_flat.sum(dim=1) > 0).sum().item() 
+active_neurons += active_rows
+```
+
+### **Summary**
+1.  **Are we only removing (masking) neurons?** No, we mask individual connections ($W_{ij}$). 
+2.  **Are we keeping neurons alive and making some connections zero?** Yes, this is exactly what happens. A neuron stays "alive" and continues to compute as long as it has at least one active path through it. If a neuron loses all its connections, it effectively "dies" and is no longer part of the computational graph.
+
+This is why the formula considers both $a_i$ (if the source isn't firing, the connection is useless) and $\frac{\partial L}{\partial y_j}$ (if the target's output doesn't affect the loss, the connection is also useless).
