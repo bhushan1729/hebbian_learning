@@ -107,15 +107,35 @@ This document summarizes the final results for MNIST pruning experiments. **$\De
 ### VGG16 CIFAR-10 (20 Epochs)
 | Metric | Baseline | Hebbian (1e-6) | $\Delta$ | Hebbian (1e-5) | $\Delta$ | Hebbian (1e-4) | $\Delta$ |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Final Sparsity** | 0.0% | 71.60% | +71.60% | **100.0%** | +100.0% | TBD | - |
-| **Active Connections** | 15,239,872 | 4,328,264 | -71.6% | **0** | -100% | TBD | - |
-| **Active Neurons** | **5,258** | 4,742 | -9.8% | **0** | -100% | TBD | - |
-| **Final Train Acc** | **95.66%** | 95.50% | -0.16% | 9.63% | -86.03% | TBD | - |
-| **Final Test Acc** | 84.46% | **85.16%** | **+0.70%** | 10.00% | -74.46% | TBD | - |
-| **Peak Test Acc** | **85.31%** | 85.16% | -0.15% | 30.44% | -54.87% | TBD | - |
+| **Final Sparsity** | 0.0% | 71.60% | +71.60% | **100.0%** | +100.0% | — | — |
+| **Active Connections** | 15,238,720 | 4,328,264 | -71.6% | **0** | -100% | — | — |
+| **Active Neurons** | **5,258** | 4,742 | -9.8% | **0** | -100% | — | — |
+| **Final Train Acc** | **95.66%** | 95.50% | -0.16% | 9.63% | -86.03% | — | — |
+| **Final Test Acc** | 84.46% | **85.16%** | **+0.70%** | 10.00% | -74.46% | — | — |
+| **Peak Test Acc** | **85.31%** | 85.16% | -0.15% | 30.44% | -54.87% | — | — |
 
 > [!CAUTION]
-> **Brain Death Observed**: The 1e-5 threshold is **too aggressive** for VGG16 on CIFAR-10. The model reached **100.0% sparsity** by epoch 18, resulting in 0 active connections and random-guess (10.0%) accuracy. 
+> **Brain Death Observed**: The 1e-5 threshold is **too aggressive** for VGG16 on CIFAR-10. The model reached **100.0% sparsity** by epoch 18, resulting in 0 active connections and random-guess (10.0%) accuracy.
 
 > [!NOTE]
 > **Observation**: The Hebbian (1e-6) pruning stage for VGG16 on CIFAR-10 successfully reduced the model size by over **71%** while actually **increasing** the final test accuracy by **0.70%**. This suggests that Hebbian pruning is acting as an effective regularizer for the deep VGG16 architecture.
+
+---
+
+## VGG16 MNIST Experiments
+
+### VGG16 MNIST (20 Epochs)
+| Metric | Baseline | Hebbian (1e-6) | $\Delta$ | Hebbian (1e-5) | $\Delta$ | Hebbian (1e-4) | $\Delta$ |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Final Sparsity** | 0.0% | 93.38% | +93.38% | 98.41% | +98.41% | **~100.0%** | +~100.0% |
+| **Active Connections** | 15,238,720 | 1,009,090 | -93.4% | 242,465 | -98.4% | **~132** | -99.99% |
+| **Active Neurons** | 5,258 | 4,058 | -22.8% | 2,311 | -56.0% | **~0** | ~-100% |
+| **Final Train Acc** | **99.45%** | 99.60% | **+0.15%** | 98.64% | -0.81% | 11.23% | -88.22% |
+| **Final Test Acc** | 99.49% | **99.45%** | -0.04% | 98.72% | -0.77% | 11.35% | -88.14% |
+| **Peak Test Acc** | **99.58%** | 99.45% | -0.13% | 99.45% | -0.13% | 97.95% | -1.63% |
+
+> [!CAUTION]
+> **Catastrophic Collapse at 1e-4**: The 1e-4 threshold eliminates ~97% of connections after a single pruning step (epoch 1 → 2). By epoch 3 the model reaches ~100% sparsity (~302 active connections) and locks at random-guess accuracy (11.35%, loss ≈ 2.301). Do **not** use threshold ≥ 1e-4 for VGG16 on MNIST.
+
+> [!NOTE]
+> **Sweet Spot — 1e-6**: With only a **−0.04%** accuracy drop vs. the baseline, Hebbian pruning at 1e-6 achieves **15× compression** (93.4% sparsity). The 1e-5 threshold pushes to **63× compression** but shows late-stage oscillation (epochs 16–20) and ends 0.77% below baseline.
