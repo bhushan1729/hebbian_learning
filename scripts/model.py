@@ -235,7 +235,7 @@ class BaselineVGG16(nn.Module):
 
     def _make_layers(self, input_channels):
         layers = []
-        cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M']
+        cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512]
         in_channels = input_channels
         for v in cfg:
             if v == 'M':
@@ -286,7 +286,7 @@ class HebbianVGG16(nn.Module):
 
     def _make_layers(self, input_channels):
         layers = []
-        cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M']
+        cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512]
         in_channels = input_channels
         for v in cfg:
             if v == 'M':
