@@ -139,3 +139,82 @@ This document summarizes the final results for MNIST pruning experiments. **$\De
 
 > [!NOTE]
 > **Sweet Spot — 1e-6**: With only a **−0.04%** accuracy drop vs. the baseline, Hebbian pruning at 1e-6 achieves **15× compression** (93.4% sparsity). The 1e-5 threshold pushes to **63× compression** but shows late-stage oscillation (epochs 16–20) and ends 0.77% below baseline.
+
+
+---
+
+Great set of experiments! Here's my overall take:
+
+---
+
+## 🔬 Overall Assessment of Hebbian Pruning
+
+### The Big Picture
+
+Hebbian pruning **works remarkably well**, especially on simpler tasks. The Hebbian rule reliably identifies redundant connections without sacrificing meaningful accuracy — and in several cases it actually *improves* generalization (acting as a regularizer).
+
+---
+
+### Architecture × Dataset Breakdown
+
+#### 🟢 MLP — MNIST (Best Hebbian wins)
+| | 10 ep | 20 ep |
+|---|---|---|
+| 1e-6 accuracy gain | **+0.29%** | **+0.42%** |
+| 1e-6 compression | 3.2× | 5.7× |
+
+MLP on MNIST is where Hebbian shines the most. The pruned model **outperforms the baseline** — classic overfitting-reduction from pruning. 1e-4 collapses completely (99.9% sparsity, ~35% acc).
+
+---
+
+#### 🟢 CNN — MNIST (Near-perfect results)
+- 1e-6 at 20 ep: only **−0.08% peak** accuracy with **40× fewer active neurons**.
+- 1e-5 at 20 ep: final CNN Hebbian **outperforms baseline** (+0.85% test acc!) — very strong regularization.
+- 1e-4: model survives but degrades, ~3-4% drop.
+
+CNN + MNIST is the most forgiving — even aggressive pruning still yields a usable model.
+
+---
+
+#### 🟡 MLP — CIFAR-10 (Pruning helps, but limited by architecture)
+- Baseline is already weak (≤52% test acc) — MLP is fundamentally underpowered for CIFAR-10.
+- Hebbian 1e-5 at 20 ep: **+2.20% test acc** gain — significant, but from a low base.
+- 1e-4 → immediate death (10% = random chance).
+- Key insight: **low pruning (1e-6/1e-5) consistently helps** because the MLP was overfitting even on CIFAR-10.
+
+---
+
+#### 🟡 CNN — CIFAR-10 (Modest but consistent gains)
+- 1e-6 at 20 ep: **+1.27% test acc**, 62% compression — solid win.
+- 1e-5 at 20 ep: **+1.44% test acc** (best!), 63.6% compression.
+- 1e-4 works but drops peak by ~0.2–0.9% — not catastrophic unlike in MLP/VGG.
+- CIFAR-10 is harder, and CNN capacity is limited — pruning at moderate rates still helps generalization.
+
+---
+
+#### 🔵 VGG16 — CIFAR-10 (Impressive regularization)
+- 1e-6 at 20 ep: **+0.70% test acc** over baseline with 71.6% compression — best VGG result.
+- 1e-5: catastrophic (100% sparsity, brain dead by epoch 18). VGG on CIFAR-10 is sensitive.
+
+---
+
+#### 🔵 VGG16 — MNIST (Extreme compression, near-lossless)
+- 1e-6: **15× compression**, only −0.04% accuracy. Essentially free compression.
+- 1e-5: **63× compression**, −0.77% accuracy. Still very usable.
+- 1e-4: dead by epoch 3.
+
+---
+
+### 📌 Key Cross-Experiment Conclusions
+
+| Finding | Evidence |
+|---|---|
+| **Hebbian at 1e-6 is universally safe** | Zero catastrophic failures across all arch+dataset combos |
+| **Pruning acts as a regularizer** | 6/10 runs show **improved** test acc vs baseline at 1e-6 or 1e-5 |
+| **VGG16 is hypersensitive** — one threshold step up causes collapse | 1e-5 kills VGG/CIFAR-10, 1e-4 kills VGG/MNIST |
+| **Simpler tasks tolerate more aggressive pruning** | CNN/MNIST survives 1e-4, VGG/CIFAR-10 does not survive 1e-5 |
+| **MLP cannot learn CIFAR-10 well** | Even with pruning help, peak ≈53% — architectural ceiling |
+| **More epochs = more pruning** (expected) | Sparsity consistently higher in 20-ep vs 10-ep runs |
+
+### 🏆 Best Result Overall
+**VGG16 MNIST at 1e-6** — 99.45% test accuracy with **15.2M → 1.0M connections** (93.4% gone). Near-zero accuracy cost for massive efficiency gain.
