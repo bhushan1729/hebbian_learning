@@ -12,11 +12,14 @@ def main():
     parser.add_argument('--batch_size', type=int, default=64, help='input batch size for training')
     parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train')
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
-    parser.add_argument('--mode', type=str, default='hebbian', choices=['baseline', 'hebbian'], help='mode: baseline, hebbian')
+    parser.add_argument('--mode', type=str, default='hebbian', choices=['baseline', 'hebbian', 'snip', 'magnitude', 'rigl'], help='mode: baseline, hebbian, snip, magnitude, rigl')
     parser.add_argument('--arch', type=str, default='mlp', choices=['mlp', 'cnn', 'vgg16'], help='architecture: mlp, cnn, vgg16')
     parser.add_argument('--colab', action='store_true', help='running in Google Colab environment')
     parser.add_argument('--prune_interval', type=int, default=500, help='interval for pruning')
     parser.add_argument('--prune_threshold', type=float, default=0.0001, help='threshold for pruning')
+    parser.add_argument('--sparsity', type=float, default=0.9, help='target sparsity for snip/magnitude/rigl')
+    parser.add_argument('--rigl_prune_fraction', type=float, default=0.2, help='fraction of weights to prune/regrow in RigL step')
+    parser.add_argument('--rigl_interval', type=int, default=100, help='RigL step interval')
     parser.add_argument('--dataset', type=str, default='MNIST', choices=['MNIST', 'CIFAR10'], help='Dataset to use')
     parser.add_argument('--data_dir', type=str, default='./data', help='Directory for datasets')
     parser.add_argument('--output_dir', type=str, default='./results', help='Directory for results')
@@ -57,20 +60,20 @@ def main():
     fc_input_dim = 3136 if args.dataset == 'MNIST' else 4096
 
     if args.arch == 'mlp':
-        if args.mode == 'baseline':
-            model = BaselineMLP(input_size=input_size, num_classes=num_classes)
-        else:
+        if args.mode == 'hebbian':
             model = HebbianMLP(input_size=input_size, num_classes=num_classes)
+        else:
+            model = BaselineMLP(input_size=input_size, num_classes=num_classes)
     elif args.arch == 'cnn':
-        if args.mode == 'baseline':
-            model = BaselineCNN(input_channels=input_channels, num_classes=num_classes, fc_input_dim=fc_input_dim)
-        else:
+        if args.mode == 'hebbian':
             model = HebbianCNN(input_channels=input_channels, num_classes=num_classes, fc_input_dim=fc_input_dim)
-    elif args.arch == 'vgg16':
-        if args.mode == 'baseline':
-            model = BaselineVGG16(input_channels=input_channels, num_classes=num_classes)
         else:
+            model = BaselineCNN(input_channels=input_channels, num_classes=num_classes, fc_input_dim=fc_input_dim)
+    elif args.arch == 'vgg16':
+        if args.mode == 'hebbian':
             model = HebbianVGG16(input_channels=input_channels, num_classes=num_classes)
+        else:
+            model = BaselineVGG16(input_channels=input_channels, num_classes=num_classes)
 
     # Naming logic
     if args.exp_name:
@@ -79,6 +82,8 @@ def main():
         base_name = f"{args.mode}_{args.arch}_{args.dataset}"
         if args.mode == 'hebbian':
             base_name += f"_thr{args.prune_threshold}"
+        elif args.mode in ['snip', 'magnitude', 'rigl']:
+            base_name += f"_sp{args.sparsity}"
     checkpoint_name = f"{base_name}.pth"
     checkpoint_path = os.path.join(args.output_dir, checkpoint_name)
     
@@ -88,9 +93,13 @@ def main():
         train_loader=train_loader,
         test_loader=test_loader,
         device=device,
+        mode=args.mode,
         lr=args.lr,
         prune_interval=args.prune_interval,
         prune_threshold=args.prune_threshold,
+        sparsity=args.sparsity,
+        rigl_prune_fraction=args.rigl_prune_fraction,
+        rigl_interval=args.rigl_interval,
         checkpoint_path=checkpoint_path
     )
 

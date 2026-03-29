@@ -491,4 +491,310 @@ When comparing:
 
 ---
 
+Great—you’re at the **execution phase**, so I’ll keep this practical and minimal.
+
+I’ll give you:
+
+1. ✅ **Minimal working code** for SNIP, Magnitude, and RigL (clean + consistent)
+2. 🧠 **Exactly what experiments to run on Colab (realistic plan)**
+
+---
+
+# 🧠 PART 1 — Minimal Baseline Code
+
+All three follow the same idea: **create mask_dict + enforce during training**
+
+---
+
+# 🔹 1. SNIP (one-shot at init)
+
+```python
+def snip_prune(model, loss_fn, dataloader, device, sparsity=0.9):
+    model.to(device)
+    model.train()
+
+    x, y = next(iter(dataloader))
+    x, y = x.to(device), y.to(device)
+
+    # Forward + backward
+    out = model(x)
+    loss = loss_fn(out, y)
+    loss.backward()
+
+    scores = []
+    params = []
+
+    for name, p in model.named_parameters():
+        if p.requires_grad and p.grad is not None and "weight" in name:
+            score = torch.abs(p.grad * p)
+            scores.append(score.view(-1))
+            params.append((name, p, score))
+
+    all_scores = torch.cat(scores)
+    k = int((1 - sparsity) * all_scores.numel())
+    threshold = torch.topk(all_scores, k)[0][-1]
+
+    mask_dict = {}
+    for name, p, score in params:
+        mask = (score >= threshold).float()
+        mask_dict[name] = mask.to(p.device)
+        p.data.mul_(mask)
+
+    return mask_dict
+```
+
+---
+
+# 🔹 2. Magnitude Pruning (post-training)
+
+```python
+def magnitude_prune(model, sparsity=0.9):
+    scores = []
+    params = []
+
+    for name, p in model.named_parameters():
+        if p.requires_grad and "weight" in name:
+            score = torch.abs(p.data)
+            scores.append(score.view(-1))
+            params.append((name, p, score))
+
+    all_scores = torch.cat(scores)
+    k = int((1 - sparsity) * all_scores.numel())
+    threshold = torch.topk(all_scores, k)[0][-1]
+
+    mask_dict = {}
+    for name, p, score in params:
+        mask = (score >= threshold).float()
+        mask_dict[name] = mask.to(p.device)
+        p.data.mul_(mask)
+
+    return mask_dict
+```
+
+---
+
+# 🔹 3. RigL (MINIMAL VERSION)
+
+This is a **simplified RigL** (good enough for paper baseline).
+
+👉 Idea:
+
+* Periodically:
+
+  * prune smallest weights
+  * regrow largest gradient positions
+
+---
+
+```python
+def rigl_step(model, mask_dict, prune_fraction=0.2):
+    for name, p in model.named_parameters():
+        if name not in mask_dict or p.grad is None:
+            continue
+
+        mask = mask_dict[name]
+
+        # 🔹 PRUNE (small weights)
+        weights = torch.abs(p.data)
+        num_active = mask.sum().item()
+        k = int(prune_fraction * num_active)
+
+        if k < 1:
+            continue
+
+        active_weights = weights[mask.bool()]
+        threshold = torch.topk(active_weights.view(-1), k, largest=False)[0][-1]
+
+        prune_mask = (weights <= threshold) * mask
+        mask[prune_mask.bool()] = 0
+
+        # 🔹 REGROW (large gradients where mask=0)
+        grad = torch.abs(p.grad)
+        inactive = (mask == 0)
+
+        regrow_scores = grad * inactive
+        k = int(prune_fraction * num_active)
+
+        if k > 0:
+            threshold = torch.topk(regrow_scores.view(-1), k)[0][-1]
+            grow_mask = (regrow_scores >= threshold)
+            mask[grow_mask] = 1
+
+        # Apply updated mask
+        p.data.mul_(mask)
+
+    return mask_dict
+```
+
+---
+
+# 🔹 Apply mask (common for all)
+
+```python
+def apply_mask(model, mask_dict):
+    with torch.no_grad():
+        for name, p in model.named_parameters():
+            if name in mask_dict:
+                p.mul_(mask_dict[name])
+```
+
+---
+
+# 🔹 Training Loop Integration
+
+### SNIP:
+
+```python
+mask_dict = snip_prune(...)
+for step:
+    optimizer.step()
+    apply_mask(model, mask_dict)
+```
+
+---
+
+### Magnitude:
+
+```python
+train normally
+mask_dict = magnitude_prune(...)
+finetune 2–3 epochs + apply_mask()
+```
+
+---
+
+### RigL:
+
+```python
+mask_dict = init_random_mask(...)
+
+for step:
+    optimizer.step()
+    apply_mask(model, mask_dict)
+
+    if step % 100 == 0:
+        rigl_step(model, mask_dict)
+```
+
+---
+
+# 🧠 PART 2 — Can you run on Colab?
+
+👉 YES, but be smart.
+
+---
+
+# ⚠️ Reality Check (Very Important)
+
+Running:
+
+* MNIST + CIFAR10
+* MLP + CNN + VGG16
+* 4 methods (Dense, SNIP, Mag, DADP)
+
+👉 That’s **24 experiments**
+
+❌ This will be slow on Colab
+
+---
+
+# 🎯 Smart Strategy (What you SHOULD do)
+
+---
+
+## 🥇 Minimum Strong Setup (Recommended)
+
+### Dataset:
+
+* MNIST ✅
+* CIFAR-10 ✅
+
+---
+
+### Models:
+
+* MLP (fast)
+* CNN (moderate)
+
+👉 Skip VGG16 initially
+
+---
+
+### Methods:
+
+* Dense
+* SNIP
+* Magnitude
+* DADP
+
+---
+
+👉 Total: **16 experiments → manageable**
+
+---
+
+## 🥈 Add VGG16 (ONLY after)
+
+Once everything works:
+
+* Run ONLY:
+
+  * Dense
+  * DADP
+
+👉 This is enough to show scaling
+
+---
+
+# ⏱ Colab Time Estimate
+
+| Model       | Time       |
+| ----------- | ---------- |
+| MLP MNIST   | ~5 min     |
+| CNN CIFAR   | ~20–30 min |
+| VGG16 CIFAR | 1–2 hours  |
+
+---
+
+# 💡 Pro Tips for Colab
+
+* Use **GPU runtime**
+* Reduce epochs:
+
+  * MNIST: 10
+  * CIFAR: 20
+* Use subset for debugging
+
+---
+
+# 🧩 Final Experiment Plan (Best Balance)
+
+### Phase 1 (Do this first)
+
+* MLP + MNIST
+* CNN + CIFAR
+* All methods
+
+---
+
+### Phase 2
+
+* Add sparsity curves
+* Add FLOPs
+
+---
+
+### Phase 3
+
+* VGG16 (only Dense vs DADP)
+
+---
+
+# 🏁 Final Advice
+
+👉 Don’t try to do everything at once
+👉 Get **clean results for smaller models first**
+
+---
+
 

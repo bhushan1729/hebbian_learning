@@ -3,21 +3,28 @@ import torch.nn as nn
 import torch.optim as optim
 import os
 import time
+from pruning_utils import snip_prune, magnitude_prune, rigl_step, apply_mask, init_random_mask
 
 class Trainer:
-    def __init__(self, model, train_loader, test_loader, device, lr=0.01, 
-                 prune_interval=100, prune_threshold=0.01, checkpoint_path='checkpoint.pth'):
+    def __init__(self, model, train_loader, test_loader, device, mode='hebbian', lr=0.01, 
+                 prune_interval=100, prune_threshold=0.01, sparsity=0.9, rigl_prune_fraction=0.2, 
+                 rigl_interval=100, checkpoint_path='checkpoint.pth'):
         self.model = model.to(device)
         self.train_loader = train_loader
         self.test_loader = test_loader
         self.device = device
+        self.mode = mode
         self.lr = lr
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
         self.criterion = nn.CrossEntropyLoss()
         
         self.prune_interval = prune_interval
         self.prune_threshold = prune_threshold
+        self.sparsity = sparsity
+        self.rigl_prune_fraction = rigl_prune_fraction
+        self.rigl_interval = rigl_interval
         self.checkpoint_path = checkpoint_path
+        self.mask_dict = {}
         
         self.step = 0
         self.epoch = 0
@@ -27,8 +34,10 @@ class Trainer:
             'sparsity': [], 'pruned_count': [],
             'active_connections': [], 'active_neurons': [],
             'config': {
+                'mode': self.mode,
                 'prune_threshold': self.prune_threshold,
                 'prune_interval': self.prune_interval,
+                'sparsity': self.sparsity,
                 'lr': self.lr
             }
         }
@@ -82,7 +91,8 @@ class Trainer:
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'history': self.history,
-            'importance_scores': self.importance_scores
+            'importance_scores': self.importance_scores,
+            'mask_dict': self.mask_dict
         }
         torch.save(state, self.checkpoint_path)
         print(f"Checkpoint saved to {self.checkpoint_path}")
@@ -96,6 +106,7 @@ class Trainer:
             self.optimizer.load_state_dict(state['optimizer_state_dict'])
             self.history = state['history']
             self.importance_scores = state.get('importance_scores', {})
+            self.mask_dict = state.get('mask_dict', {})
             print(f"Resumed from epoch {self.epoch}, step {self.step}")
             return True
         return False
@@ -117,14 +128,19 @@ class Trainer:
             loss.backward()
             self.optimizer.step()
             
+            if self.mode in ['snip', 'magnitude', 'rigl'] and self.mask_dict:
+                apply_mask(self.model, self.mask_dict)
+            
             total_loss += loss.item()
             _, predicted = output.max(1)
             total += target.size(0)
             correct += predicted.eq(target).sum().item()
             
             self.step += 1
-            if self.prune_interval > 0 and self.step % self.prune_interval == 0:
+            if self.mode == 'hebbian' and self.prune_interval > 0 and self.step % self.prune_interval == 0:
                 self.prune()
+            elif self.mode == 'rigl' and self.rigl_interval > 0 and self.step % self.rigl_interval == 0:
+                self.mask_dict = rigl_step(self.model, self.mask_dict, self.rigl_prune_fraction)
             
             # Print a small progress dot or similar every 100 batches to show life
             if batch_idx % 100 == 0:
@@ -175,7 +191,16 @@ class Trainer:
             print(f"\n[Pruning] {' | '.join(summary)}")
 
     def run(self, num_epochs):
+        if self.epoch == 0:
+            if self.mode == 'snip':
+                self.mask_dict = snip_prune(self.model, self.criterion, self.train_loader, self.device, self.sparsity)
+            elif self.mode == 'rigl':
+                self.mask_dict = init_random_mask(self.model, self.sparsity)
+
         for epoch in range(self.epoch, num_epochs):
+            if self.mode == 'magnitude' and epoch == max(1, num_epochs - 3) and not self.mask_dict:
+                self.mask_dict = magnitude_prune(self.model, self.sparsity)
+                
             self.epoch = epoch + 1 # Set to next epoch for potential resume
             start_time = time.time()
             
@@ -188,11 +213,24 @@ class Trainer:
             active_neurons = 0
             
             # Robust extraction of metrics
-            if hasattr(self.model, 'get_sparsity'):
+            if self.mode in ['baseline', 'hebbian'] and hasattr(self.model, 'get_sparsity'):
                 sparsity = self.model.get_sparsity()
                 pruned_count = self.model.get_pruned_count()
                 active_connections = self.model.get_active_connections()
                 active_neurons = self.model.get_active_neurons()
+            else:
+                if not self.mask_dict:
+                    sparsity = 0.0
+                    pruned_count = 0
+                    total_connections = sum(p.numel() for n, p in self.model.named_parameters() if 'weight' in n)
+                    active_connections = total_connections
+                    active_neurons = 0
+                else:
+                    total_connections = sum(m.numel() for m in self.mask_dict.values())
+                    active_connections = int(sum(m.sum().item() for m in self.mask_dict.values()))
+                    pruned_count = total_connections - active_connections
+                    sparsity = pruned_count / total_connections if total_connections > 0 else 0
+                    active_neurons = 0
             
             self.history['train_loss'].append(train_loss)
             self.history['train_acc'].append(train_acc)
