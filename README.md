@@ -22,7 +22,7 @@ We support three primary architectures, each with a **Baseline** and **Hebbian**
 
 | Architecture | Description | Target Datasets |
 | :--- | :--- | :--- |
-| **MLP** | 3-Layer Multi-Layer Perceptron (784-512-512-10) | MNIST |
+| **MLP** | 3-Layer Multi-Layer Perceptron (784-512-512-10) | MNIST, CIFAR-10 |
 | **CNN** | 2 Conv Layers + 2 FC Layers | MNIST, CIFAR-10 |
 | **VGG16** | 16-Layer Deep CNN (with Batch Norm & Adaptive Pooling) | CIFAR-10, MNIST |
 
