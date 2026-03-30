@@ -93,28 +93,29 @@ def rigl_step(model, mask_dict, prune_fraction=0.2):
 
         # PRUNE (small active weights)
         weights = torch.abs(p.data)
-        num_active = mask.sum().item()
+        num_active = int(mask.sum().item())
         k = int(prune_fraction * num_active)
 
         if k < 1:
             continue
 
-        active_weights = weights[mask.bool()]
-        threshold = torch.topk(active_weights.view(-1), k, largest=False)[0][-1]
-
-        prune_mask = (weights <= threshold) * mask
-        mask[prune_mask.bool()] = 0
+        flat_mask = mask.view(-1)
+        
+        # Find k smallest active weights
+        active_scores = weights.clone()
+        active_scores[mask == 0] = float('inf')
+        prune_indices = torch.topk(active_scores.view(-1), k, largest=False)[1]
+        flat_mask[prune_indices] = 0
 
         # REGROW (large gradients where mask=0)
         grad = torch.abs(p.grad)
-        inactive = (mask == 0)
-
-        regrow_scores = grad * inactive
         
-        if k > 0:
-            threshold = torch.topk(regrow_scores.view(-1), k)[0][-1]
-            grow_mask = (regrow_scores >= threshold)
-            mask[grow_mask] = 1
+        # Find k largest inactive gradients
+        regrow_scores = grad.clone()
+        regrow_scores[mask == 1] = -1.0
+        
+        grow_indices = torch.topk(regrow_scores.view(-1), k, largest=True)[1]
+        flat_mask[grow_indices] = 1
 
         # Apply updated mask
         p.data.mul_(mask)
