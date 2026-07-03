@@ -17,7 +17,8 @@ from model import MaskedLinear, HebbianMLP
 def plot_mlp_pruning(model, save_path="pruned_mlp_visualization.png", max_neurons_per_layer=15, title="MLP Structural Pruning Visualization"):
     """
     Visualizes the dense vs. DADP-pruned structure of an MLP model.
-    If a layer is too large, it downsamples the units for a clean layout.
+    Supports both downsampled layouts and full network visualization (by passing None or large values).
+    Dynamically scales sizes and spacing, and optimizes performance for large networks.
     """
     # Find all MaskedLinear layers in the model
     layers = [m for m in model.modules() if isinstance(m, MaskedLinear) or isinstance(m, nn.Linear)]
@@ -26,7 +27,7 @@ def plot_mlp_pruning(model, save_path="pruned_mlp_visualization.png", max_neuron
         print("Error: No Linear or MaskedLinear layers found in model.")
         return
         
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(15, 10))
     ax.axis('off')
     
     # Layer sizes
@@ -37,10 +38,10 @@ def plot_mlp_pruning(model, save_path="pruned_mlp_visualization.png", max_neuron
         
     num_layers = len(layer_sizes)
     
-    # Determine which indices of neurons to show for each layer (downsampling if needed)
+    # Determine which indices of neurons to show for each layer
     sampled_indices = []
     for l_idx, size in enumerate(layer_sizes):
-        if size > max_neurons_per_layer:
+        if max_neurons_per_layer is not None and max_neurons_per_layer > 0 and size > max_neurons_per_layer:
             # Sample evenly
             step = size / max_neurons_per_layer
             indices = [int(i * step) for i in range(max_neurons_per_layer)]
@@ -48,19 +49,34 @@ def plot_mlp_pruning(model, save_path="pruned_mlp_visualization.png", max_neuron
         else:
             sampled_indices.append(list(range(size)))
             
-    # Calculate positions for all drawn nodes
+    # Calculate spacing and vertical positions. Normalize total height so all columns match.
+    total_height = 20.0
     node_positions = {} # maps (layer, node_index) to (x, y)
+    node_spacings = {}
+    
     for l_idx, indices in enumerate(sampled_indices):
-        x = l_idx * 3.0
+        # Stretch columns slightly more if drawing full size to give space for connections
+        x = l_idx * 4.5
         n_nodes = len(indices)
-        spacing = 1.2
-        total_height = (n_nodes - 1) * spacing
+        if n_nodes > 1:
+            spacing = total_height / (n_nodes - 1)
+        else:
+            spacing = 0.0
+        node_spacings[l_idx] = spacing
         start_y = total_height / 2.0
         
         for draw_idx, orig_idx in enumerate(indices):
             y = start_y - draw_idx * spacing
             node_positions[(l_idx, orig_idx)] = (x, y)
             
+    # Check size of connection grid. If too large, skip drawing pruned paths to keep it readable and fast.
+    total_drawn_connections = sum(len(sampled_indices[l_idx]) * len(sampled_indices[l_idx+1]) for l_idx in range(num_layers - 1))
+    draw_pruned_paths = total_drawn_connections < 15000
+    
+    # Connection line properties: dynamically scale down thickness & alpha for large nets
+    max_layer_drawn_size = max(len(indices) for indices in sampled_indices)
+    scale_factor = min(1.0, 30.0 / max_layer_drawn_size) if max_layer_drawn_size > 0 else 1.0
+    
     # First, draw connections (so they appear behind the nodes)
     for l_idx in range(num_layers - 1):
         layer = layers[l_idx]
@@ -89,18 +105,18 @@ def plot_mlp_pruning(model, save_path="pruned_mlp_visualization.png", max_neuron
                 if m_val > 0:
                     # Active connection: draw solid colored line
                     color = "#1f77b4" if w_val >= 0 else "#d62728" # Blue for positive, Red for negative
-                    linewidth = 0.5 + 2.5 * (abs(w_val) / max_w)
-                    ax.plot([x1, x2], [y1, y2], color=color, linewidth=linewidth, alpha=0.7, zorder=1)
-                else:
+                    linewidth = (0.5 + 2.5 * (abs(w_val) / max_w)) * scale_factor
+                    alpha = 0.7 * scale_factor
+                    ax.plot([x1, x2], [y1, y2], color=color, linewidth=linewidth, alpha=alpha, zorder=1)
+                elif draw_pruned_paths:
                     # Pruned connection: draw faint, dotted gray line
-                    ax.plot([x1, x2], [y1, y2], color="gray", linewidth=0.2, alpha=0.15, linestyle="dotted", zorder=0)
+                    ax.plot([x1, x2], [y1, y2], color="gray", linewidth=0.2, alpha=0.15 * scale_factor, linestyle="dotted", zorder=0)
 
     # Next, draw nodes (neurons)
     for l_idx, indices in enumerate(sampled_indices):
-        # We need to determine if a node is active
-        # An input node is active if it has at least one active outgoing connection
-        # An output node is active if it has at least one active incoming connection
-        # An intermediate node is active if it has at least one active incoming and outgoing connection
+        spacing = node_spacings[l_idx]
+        # Dynamically size the circles based on layer vertical density
+        radius = min(0.22, spacing * 0.45) if spacing > 0.0 else 0.22
         
         for orig_idx in indices:
             x, y = node_positions[(l_idx, orig_idx)]
@@ -147,15 +163,18 @@ def plot_mlp_pruning(model, save_path="pruned_mlp_visualization.png", max_neuron
                 alpha = 0.5
                 zorder = 2
                 
-            circle = plt.Circle((x, y), radius=0.25, facecolor=facecolor, edgecolor=edgecolor, alpha=alpha, zorder=zorder)
+            circle = plt.Circle((x, y), radius=radius, facecolor=facecolor, edgecolor=edgecolor, alpha=alpha, zorder=zorder)
             ax.add_patch(circle)
             
-            # Label layers
+            # Label layers (only once per layer)
             if orig_idx == indices[0]:
                 label = "Input Layer" if l_idx == 0 else ("Output Layer" if l_idx == num_layers - 1 else f"Hidden {l_idx}")
-                ax.text(x, y + 0.6, label, ha='center', va='bottom', fontsize=10, fontweight='bold')
+                # Place label above the column top
+                ax.text(x, (total_height / 2.0) + 0.8, label, ha='center', va='bottom', fontsize=12, fontweight='bold')
+                # Subtitle under layer labels for original features size context
+                ax.text(x, (total_height / 2.0) + 0.3, f"({len(indices)} shown / {layer_sizes[l_idx]} total)", ha='center', va='bottom', fontsize=8, style='italic')
 
-    plt.title(title, fontsize=14, fontweight='bold', pad=20)
+    plt.title(title, fontsize=14, fontweight='bold', pad=30)
     plt.tight_layout()
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -192,6 +211,7 @@ if __name__ == "__main__":
     parser.add_argument('--input_size', type=int, default=784, help="Input features size (default: 784 for MNIST)")
     parser.add_argument('--hidden_size', type=int, default=512, help="Hidden layers feature size (default: 512)")
     parser.add_argument('--num_classes', type=int, default=10, help="Output classes count (default: 10)")
+    parser.add_argument('--max_neurons', type=int, default=15, help="Max neurons to show per layer. Set to -1 to show all neurons (no downsampling).")
     args = parser.parse_args()
     
     if args.toy:
@@ -239,10 +259,11 @@ if __name__ == "__main__":
         print(f"Plotting model with shape: Input={args.input_size}, Hidden={args.hidden_size}, Output={args.num_classes}")
         print(f"Current sparsity: {sparsity_pct:.2f}%")
         
+        max_neurons = args.max_neurons if args.max_neurons > 0 else None
         plot_mlp_pruning(
             model,
             save_path=args.output,
-            max_neurons_per_layer=15,
+            max_neurons_per_layer=max_neurons,
             title=title
         )
     else:
