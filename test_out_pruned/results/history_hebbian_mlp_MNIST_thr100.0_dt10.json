@@ -1,0 +1,59 @@
+{
+    "train_loss": [
+        2.292678952217102
+    ],
+    "train_acc": [
+        17.96875
+    ],
+    "test_loss": [
+        2.325666904449463
+    ],
+    "test_acc": [
+        7.8125
+    ],
+    "sparsity": [
+        0.0
+    ],
+    "pruned_count": [
+        0
+    ],
+    "active_connections": [
+        668672
+    ],
+    "active_neurons": [
+        1034
+    ],
+    "layer_sparsity": {
+        "epoch_1": {
+            "fc1": {
+                "sparsity": 0.0,
+                "active_weights": 401408,
+                "total_weights": 401408,
+                "active_neurons": 512,
+                "total_neurons": 512
+            },
+            "fc2": {
+                "sparsity": 0.0,
+                "active_weights": 262144,
+                "total_weights": 262144,
+                "active_neurons": 512,
+                "total_neurons": 512
+            },
+            "fc3": {
+                "sparsity": 0.0,
+                "active_weights": 5120,
+                "total_weights": 5120,
+                "active_neurons": 10,
+                "total_neurons": 10
+            }
+        }
+    },
+    "config": {
+        "mode": "hebbian",
+        "prune_threshold": 100.0,
+        "prune_interval": 10,
+        "sparsity": 0.9,
+        "lr": 0.001,
+        "dataset_samples": 128
+    }
+}

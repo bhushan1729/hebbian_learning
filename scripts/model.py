@@ -36,6 +36,78 @@ class MaskedConv2d(nn.Conv2d):
             self.mask.data *= new_mask
             self.weight.data *= self.mask.data
 
+# --- Dynamic Module Conversion ---
+
+def convert_to_masked_model(model):
+    """
+    Recursively replaces all nn.Linear and nn.Conv2d modules in a model with
+    MaskedLinear and MaskedConv2d to make it compatible with DADP, SNIP, etc.
+    """
+    for name, child in model.named_children():
+        if isinstance(child, nn.Linear):
+            # Keep classification head dense if it maps to classes
+            if 'classifier' in name or 'fc' in name or 'output' in name:
+                # Still support mask if it's not the final classes (but we can prune it safely too)
+                pass
+            masked_layer = MaskedLinear(child.in_features, child.out_features, bias=child.bias is not None)
+            masked_layer.weight.data.copy_(child.weight.data)
+            if child.bias is not None:
+                masked_layer.bias.data.copy_(child.bias.data)
+            setattr(model, name, masked_layer)
+        elif isinstance(child, nn.Conv2d):
+            masked_layer = MaskedConv2d(
+                child.in_channels, child.out_channels, child.kernel_size,
+                stride=child.stride, padding=child.padding, dilation=child.dilation,
+                groups=child.groups, bias=child.bias is not None
+            )
+            masked_layer.weight.data.copy_(child.weight.data)
+            if child.bias is not None:
+                masked_layer.bias.data.copy_(child.bias.data)
+            setattr(model, name, masked_layer)
+        else:
+            convert_to_masked_model(child)
+    return model
+
+# --- Generic Model Metrics Estimators ---
+
+def get_model_sparsity(model):
+    total = get_model_total_connections(model)
+    pruned = get_model_pruned_count(model)
+    return pruned / total if total > 0 else 0.0
+
+def get_model_pruned_count(model):
+    pruned = 0
+    for m in model.modules():
+        if hasattr(m, 'mask'):
+            pruned += (m.mask == 0).sum().item()
+    return pruned
+
+def get_model_total_connections(model):
+    total = 0
+    for m in model.modules():
+        if hasattr(m, 'mask'):
+            total += m.mask.numel()
+        elif isinstance(m, (nn.Linear, nn.Conv2d)):
+            total += m.weight.numel()
+    return total
+
+def get_model_active_connections(model):
+    return get_model_total_connections(model) - get_model_pruned_count(model)
+
+def get_model_active_neurons(model):
+    active_neurons = 0
+    for m in model.modules():
+        if hasattr(m, 'mask'):
+            mask_flat = m.mask.view(m.mask.size(0), -1)
+            active_rows = (mask_flat.sum(dim=1) > 0).sum().item()
+            active_neurons += active_rows
+        elif isinstance(m, (nn.Linear, nn.Conv2d)):
+            active_neurons += m.weight.size(0)
+    return active_neurons
+
+
+# --- Standard Vision baselines ---
+
 class BaselineMLP(nn.Module):
     def __init__(self, input_size=784, hidden_size=512, num_classes=10):
         super(BaselineMLP, self).__init__()
@@ -50,31 +122,6 @@ class BaselineMLP(nn.Module):
         x = self.fc3(x)
         return x
 
-    def get_sparsity(self):
-        return 0.0
-
-    def get_pruned_count(self):
-        return 0
-
-    def get_total_connections(self):
-        total = 0
-        for m in self.modules():
-            if isinstance(m, (nn.Linear, nn.Conv2d)):
-                total += m.weight.numel()
-        return total
-
-    def get_active_connections(self):
-        return self.get_total_connections()
-
-    def get_active_neurons(self):
-        active_neurons = 0
-        for m in self.modules():
-            if hasattr(m, 'out_features'):
-                active_neurons += m.out_features
-            elif hasattr(m, 'out_channels'):
-                active_neurons += m.out_channels
-        return active_neurons
-
 class HebbianMLP(nn.Module):
     def __init__(self, input_size=784, hidden_size=512, num_classes=10):
         super(HebbianMLP, self).__init__()
@@ -88,41 +135,6 @@ class HebbianMLP(nn.Module):
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
         return x
-
-    def get_sparsity(self):
-        total = self.get_total_connections()
-        pruned = self.get_pruned_count()
-        return pruned / total if total > 0 else 0
-
-    def get_pruned_count(self):
-        pruned_connections = 0
-        for m in self.modules():
-            if hasattr(m, 'mask'):
-                pruned_connections += torch.sum(m.mask == 0).item()
-        return pruned_connections
-
-    def get_total_connections(self):
-        total_connections = 0
-        for m in self.modules():
-            if hasattr(m, 'mask'):
-                total_connections += m.mask.numel()
-        return total_connections
-
-    def get_active_connections(self):
-        return self.get_total_connections() - self.get_pruned_count()
-
-    def get_active_neurons(self):
-        active_neurons = 0
-        for m in self.modules():
-            if hasattr(m, 'mask'):
-                # For both Linear and Conv2d, mask.sum(dim=1...) works if we flatten dims > 0
-                # But it's easier to just check if the entire output unit's weights are zero
-                # For Linear: (out_features, in_features) -> dim=1
-                # For Conv2d: (out_channels, in_channels, k, k) -> dims=(1,2,3)
-                mask_flat = m.mask.view(m.mask.size(0), -1)
-                active_rows = (mask_flat.sum(dim=1) > 0).sum().item()
-                active_neurons += active_rows
-        return active_neurons
 
 class BaselineCNN(nn.Module):
     def __init__(self, input_channels=1, num_classes=10, fc_input_dim=3136):
@@ -143,31 +155,6 @@ class BaselineCNN(nn.Module):
         x = self.fc2(x)
         return x
 
-    def get_sparsity(self):
-        return 0.0
-
-    def get_pruned_count(self):
-        return 0
-
-    def get_total_connections(self):
-        total = 0
-        for m in self.modules():
-            if isinstance(m, (nn.Linear, nn.Conv2d)):
-                total += m.weight.numel()
-        return total
-
-    def get_active_connections(self):
-        return self.get_total_connections()
-
-    def get_active_neurons(self):
-        active_neurons = 0
-        for m in self.modules():
-            if hasattr(m, 'out_features'):
-                active_neurons += m.out_features
-            elif hasattr(m, 'out_channels'):
-                active_neurons += m.out_channels
-        return active_neurons
-
 class HebbianCNN(nn.Module):
     def __init__(self, input_channels=1, num_classes=10, fc_input_dim=3136):
         super(HebbianCNN, self).__init__()
@@ -186,37 +173,6 @@ class HebbianCNN(nn.Module):
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return x
-
-    def get_sparsity(self):
-        total = self.get_total_connections()
-        pruned = self.get_pruned_count()
-        return pruned / total if total > 0 else 0
-
-    def get_pruned_count(self):
-        pruned = 0
-        for m in self.modules():
-            if hasattr(m, 'mask'):
-                pruned += torch.sum(m.mask == 0).item()
-        return pruned
-
-    def get_total_connections(self):
-        total = 0
-        for m in self.modules():
-            if hasattr(m, 'mask'):
-                total += m.mask.numel()
-        return total
-
-    def get_active_connections(self):
-        return self.get_total_connections() - self.get_pruned_count()
-
-    def get_active_neurons(self):
-        active_neurons = 0
-        for m in self.modules():
-            if hasattr(m, 'mask'):
-                mask_flat = m.mask.view(m.mask.size(0), -1)
-                active_rows = (mask_flat.sum(dim=1) > 0).sum().item()
-                active_neurons += active_rows
-        return active_neurons
 
 class BaselineVGG16(nn.Module):
     def __init__(self, input_channels=3, num_classes=10):
@@ -253,22 +209,6 @@ class BaselineVGG16(nn.Module):
         x = self.classifier(x)
         return x
 
-    def get_sparsity(self): return 0.0
-    def get_pruned_count(self): return 0
-    def get_total_connections(self):
-        total = 0
-        for m in self.modules():
-            if isinstance(m, (nn.Linear, nn.Conv2d)):
-                total += m.weight.numel()
-        return total
-    def get_active_connections(self): return self.get_total_connections()
-    def get_active_neurons(self):
-        active_neurons = 0
-        for m in self.modules():
-            if hasattr(m, 'out_features'): active_neurons += m.out_features
-            elif hasattr(m, 'out_channels'): active_neurons += m.out_channels
-        return active_neurons
-
 class HebbianVGG16(nn.Module):
     def __init__(self, input_channels=3, num_classes=10):
         super(HebbianVGG16, self).__init__()
@@ -304,34 +244,236 @@ class HebbianVGG16(nn.Module):
         x = self.classifier(x)
         return x
 
-    def get_sparsity(self):
-        total = self.get_total_connections()
-        pruned = self.get_pruned_count()
-        return pruned / total if total > 0 else 0
 
-    def get_pruned_count(self):
-        pruned_connections = 0
-        for m in self.modules():
-            if hasattr(m, 'mask'):
-                pruned_connections += torch.sum(m.mask == 0).item()
-        return pruned_connections
+# --- ResNet18 (Masked via torchvision wrappers) ---
 
-    def get_total_connections(self):
-        total_connections = 0
-        for m in self.modules():
-            if hasattr(m, 'mask'):
-                total_connections += m.mask.numel()
-        return total_connections
+def get_resnet18(num_classes=10, masked=False):
+    import torchvision.models as models
+    model = models.resnet18(num_classes=num_classes)
+    if masked:
+        model = convert_to_masked_model(model)
+    return model
 
-    def get_active_connections(self):
-        return self.get_total_connections() - self.get_pruned_count()
 
-    def get_active_neurons(self):
-        active_neurons = 0
-        for m in self.modules():
-            if hasattr(m, 'mask'):
-                mask_flat = m.mask.view(m.mask.size(0), -1)
-                active_rows = (mask_flat.sum(dim=1) > 0).sum().item()
-                active_neurons += active_rows
-        return active_neurons
+# --- Masked LSTM Cells & Layers (Sequential) ---
 
+class MaskedLSTMCell(nn.Module):
+    """
+    An LSTM cell where input-to-hidden and hidden-to-hidden projections
+    can be masked by DADP / standard pruning tools.
+    """
+    def __init__(self, input_size, hidden_size):
+        super(MaskedLSTMCell, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.fc_ih = MaskedLinear(input_size, 4 * hidden_size, bias=True)
+        self.fc_hh = MaskedLinear(hidden_size, 4 * hidden_size, bias=True)
+
+    def forward(self, x, hx):
+        h, c = hx
+        gates = self.fc_ih(x) + self.fc_hh(h)
+        i, f, g, o = gates.chunk(4, 1)
+        i = torch.sigmoid(i)
+        f = torch.sigmoid(f)
+        g = torch.tanh(g)
+        o = torch.sigmoid(o)
+        new_c = f * c + i * g
+        new_h = o * torch.tanh(new_c)
+        return new_h, new_c
+
+class MaskedLSTM(nn.Module):
+    """
+    Multilayer bidirectional LSTM using MaskedLSTMCells.
+    """
+    def __init__(self, input_size, hidden_size, num_layers=1, bidirectional=False):
+        super(MaskedLSTM, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.bidirectional = bidirectional
+        
+        self.forward_cells = nn.ModuleList()
+        self.backward_cells = nn.ModuleList() if bidirectional else None
+        
+        for layer in range(num_layers):
+            layer_input_size = input_size if layer == 0 else (hidden_size * 2 if bidirectional else hidden_size)
+            self.forward_cells.append(MaskedLSTMCell(layer_input_size, hidden_size))
+            if bidirectional:
+                self.backward_cells.append(MaskedLSTMCell(layer_input_size, hidden_size))
+
+    def forward(self, x):
+        batch_size, seq_len, _ = x.shape
+        device = x.device
+        
+        current_input = x
+        for layer in range(self.num_layers):
+            h_f = torch.zeros(batch_size, self.hidden_size, device=device)
+            c_f = torch.zeros(batch_size, self.hidden_size, device=device)
+            outputs_f = []
+            for t in range(seq_len):
+                h_f, c_f = self.forward_cells[layer](current_input[:, t, :], (h_f, c_f))
+                outputs_f.append(h_f.unsqueeze(1))
+            layer_output = torch.cat(outputs_f, dim=1)
+            
+            if self.bidirectional:
+                h_b = torch.zeros(batch_size, self.hidden_size, device=device)
+                c_b = torch.zeros(batch_size, self.hidden_size, device=device)
+                outputs_b = []
+                for t in reversed(range(seq_len)):
+                    h_b, c_b = self.backward_cells[layer](current_input[:, t, :], (h_b, c_b))
+                    outputs_b.append(h_b.unsqueeze(1))
+                outputs_b.reverse()
+                layer_output_b = torch.cat(outputs_b, dim=1)
+                layer_output = torch.cat([layer_output, layer_output_b], dim=-1)
+                
+            current_input = layer_output
+        return current_input
+
+# --- BiLSTM-CRF for NER sequence labeling ---
+
+class CRF(nn.Module):
+    """
+    Self-contained CRF layer implementing Viterbi and Forward algorithms.
+    """
+    def __init__(self, num_tags):
+        super(CRF, self).__init__()
+        self.num_tags = num_tags
+        # Transition parameters: transitions[i, j] = score of transitioning from j to i
+        self.transitions = nn.Parameter(torch.randn(num_tags, num_tags))
+        
+    def forward_alg(self, feats):
+        # Forward algorithm to compute partition function (normalizer)
+        batch_size, seq_len, num_tags = feats.shape
+        init_alphas = torch.full((batch_size, num_tags), -10000.0, device=feats.device)
+        init_alphas[:, 0] = 0.0 # start tag index
+        
+        forward_var = init_alphas
+        for i in range(seq_len):
+            feat = feats[:, i, :]
+            # broadcast transition scores
+            emit_score = feat.unsqueeze(2) # (B, T, 1)
+            trans_score = self.transitions.unsqueeze(0) # (1, T, T)
+            next_tag_var = forward_var.unsqueeze(1) + trans_score + emit_score # (B, T, T)
+            forward_var = torch.logsumexp(next_tag_var, dim=2)
+            
+        return torch.logsumexp(forward_var, dim=1)
+
+    def score_sentence(self, feats, tags):
+        # Score of gold sentence
+        batch_size, seq_len, _ = feats.shape
+        score = torch.zeros(batch_size, device=feats.device)
+        
+        # Add transitions
+        for i in range(seq_len):
+            feat = feats[:, i, :]
+            score += feat[torch.arange(batch_size), tags[:, i]]
+            if i > 0:
+                score += self.transitions[tags[:, i], tags[:, i-1]]
+        return score
+
+    def decode(self, feats):
+        # Viterbi decoding
+        batch_size, seq_len, num_tags = feats.shape
+        backpointers = []
+        
+        init_vvars = torch.full((batch_size, num_tags), -10000.0, device=feats.device)
+        init_vvars[:, 0] = 0.0
+        
+        viterbi_vars = init_vvars
+        for i in range(seq_len):
+            feat = feats[:, i, :]
+            next_tag_var = viterbi_vars.unsqueeze(1) + self.transitions.unsqueeze(0) # (B, T, T)
+            best_tag_ids = torch.argmax(next_tag_var, dim=2)
+            
+            # max over transition scores
+            max_vars = torch.max(next_tag_var, dim=2)[0]
+            viterbi_vars = max_vars + feat
+            backpointers.append(best_tag_ids)
+            
+        best_path_scores = torch.max(viterbi_vars, dim=1)[0]
+        
+        # Reconstruct paths
+        paths = []
+        for b in range(batch_size):
+            best_tag_id = torch.argmax(viterbi_vars[b]).item()
+            path = [best_tag_id]
+            for best_tag_ids in reversed(backpointers):
+                best_tag_id = best_tag_ids[b, best_tag_id].item()
+                path.append(best_tag_id)
+            path.pop() # remove initial dummy start state index
+            path.reverse()
+            paths.append(path)
+            
+        return best_path_scores, paths
+
+class BiLSTM_CRF(nn.Module):
+    def __init__(self, vocab_size=5000, tag_to_ix=None, embedding_dim=128, hidden_dim=128, masked=False):
+        super(BiLSTM_CRF, self).__init__()
+        self.vocab_size = vocab_size
+        self.tag_to_ix = tag_to_ix if tag_to_ix else {str(i): i for i in range(9)}
+        self.num_tags = len(self.tag_to_ix)
+        
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        
+        if masked:
+            self.lstm = MaskedLSTM(embedding_dim, hidden_dim // 2, num_layers=1, bidirectional=True)
+            self.hidden2tag = MaskedLinear(hidden_dim, self.num_tags)
+        else:
+            self.lstm = nn.LSTM(embedding_dim, hidden_dim // 2, num_layers=1, bidirectional=True, batch_first=True)
+            self.hidden2tag = nn.Linear(hidden_dim, self.num_tags)
+            
+        self.crf = CRF(self.num_tags)
+
+    def _get_lstm_features(self, sentence):
+        embeds = self.embedding(sentence)
+        if isinstance(self.lstm, MaskedLSTM):
+            lstm_out = self.lstm(embeds)
+        else:
+            lstm_out, _ = self.lstm(embeds)
+        lstm_feats = self.hidden2tag(lstm_out)
+        return lstm_feats
+
+    def forward(self, sentence, tags):
+        feats = self._get_lstm_features(sentence)
+        forward_score = self.crf.forward_alg(feats)
+        gold_score = self.crf.score_sentence(feats, tags)
+        # Loss is negative log-likelihood
+        return (forward_score - gold_score).mean()
+
+    def predict(self, sentence):
+        feats = self._get_lstm_features(sentence)
+        scores, paths = self.crf.decode(feats)
+        return torch.tensor(paths, device=sentence.device)
+
+
+# --- Native PyTorch Mini-Transformer Baseline (BERT-Mini alternative) ---
+
+class MiniTransformer(nn.Module):
+    """
+    A lightweight Transformer model built on PyTorch modules.
+    Can be dynamically converted to DADP masked version.
+    """
+    def __init__(self, vocab_size=5000, d_model=128, nhead=4, num_layers=2, num_classes=2):
+        super(MiniTransformer, self).__init__()
+        self.embedding = nn.Embedding(vocab_size, d_model)
+        # Standard PyTorch TransformerEncoderLayer (contains projections and feedforwards)
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model, nhead=nhead, dim_feedforward=256, 
+            dropout=0.1, batch_first=True
+        )
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        self.fc = nn.Linear(d_model, num_classes)
+
+    def forward(self, x):
+        # x shape: (batch, seq_len)
+        emb = self.embedding(x)
+        out = self.transformer(emb)
+        # Global average pooling over token dimensions
+        out = out.mean(dim=1)
+        return self.fc(out)
+
+def get_mini_transformer(vocab_size=5000, num_classes=2, masked=False):
+    model = MiniTransformer(vocab_size=vocab_size, num_classes=num_classes)
+    if masked:
+        model = convert_to_masked_model(model)
+    return model

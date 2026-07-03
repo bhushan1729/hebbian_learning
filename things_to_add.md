@@ -796,5 +796,119 @@ Once everything works:
 👉 Get **clean results for smaller models first**
 
 ---
+---
 
 
+# Updated Plan: 
+## Date: 03-07-2026
+
+
+Welcome back to the project! You have a fantastic empirical foundation here. Your early results on VGG16, CNNs, and MLPs already show exactly what ICLR reviewers look for: **organic, emergence-based sparsity that out-performs or matches rigid, hard-coded baselines.**
+
+Given today's date of **July 3, 2026**, you have roughly **3 months** before the ICLR 2027 submission deadline (typically early October). To successfully position DADP as a foundational structural learning rule, we need to transition it from a "vision heuristic" to a **unified, cross-modal architectural principle** (covering Vision, Sequential/RNN, and Attention/Transformers).
+
+Here is your concrete, high-ROI experimentation and execution plan.
+
+---
+
+## 🗺️ The Core Framework Matrix
+
+To satisfy ICLR's high standards for architectural breadth, your paper should benchmark DADP across four distinct foundational paradigms:
+
+| Domain | Dataset | Architecture | Purpose / Novelty Focus |
+| --- | --- | --- | --- |
+| **Vision (Dense/CNN)** | CIFAR-10 / ImageNet-100 | **ResNet-18** & **VGG16** | Show scalability to modern residual connections vs. sequential layers. |
+| **Sequential (RNN)** | CoNLL-2003 (NER) | **BiLSTM-CRF** | Show how DADP prunes recurrent hidden states without destroying memory tracking. |
+| **Attention (Transformer)** | SST-2 / IMDB | **BERT-Mini / Base** | Prove DADP can prune Attention Heads or Key/Value/Query projection matrices. |
+
+---
+
+## 🚀 Phase 1: Solidifying the Vision Foundation (Weeks 1–3)
+
+*Goal: Move past toy setups (MNIST/Simple CNN) into standard, modern vision benchmarks.*
+
+* **Upgrade to ResNet-18:** Reviewers often dismiss VGG16 as "too easy to prune because it's massively bloated." You must prove DADP works on architectures with **residual skip-connections**.
+* *The Hack:* Do not prune the residual shortcut weights if they are identity mappings. Apply the DADP mask to the convolutional layers inside the residual blocks.
+
+
+* **Generate Core Baseline Curves:** Run **Magnitude Pruning, SNIP, and RigL** on ResNet-18 (CIFAR-10).
+* **Deliverable:** A **Sparsity vs. Accuracy Curve** showing multiple $\tau$ sweeps for DADP compared against fixed target sparsities ($70\%, 80\%, 90\%, 95\%$) of the baselines.
+
+---
+
+## 🧵 Phase 2: Sequential Learning via RNNs / LSTMs (Weeks 4–6)
+
+*Goal: Show how DADP treats temporal, history-dependent representations.*
+
+### Task: Named Entity Recognition (NER) on CoNLL-2003 using BiLSTM-CRF
+
+* **The Hebbian Formulation in LSTMs:** An LSTM layer utilizes hidden-to-hidden matrices ($W_{hh}$) and input-to-hidden matrices ($W_{ih}$). The activation $a_i$ corresponds to the hidden state $h_{t-1}$ or input $x_t$, while the gradient handles backpropagation through time (BPTT).
+* **What to Track:** Apply DADP to the weight matrices of the LSTM cells.
+* **Expected Insight:** Discover if DADP organically preserves early-timestep features or specific gating mechanisms (e.g., keeping input/forget gates denser than output gates).
+* **Baselines:** Compare against standard post-training magnitude pruning and random sparse RNN networks.
+
+---
+
+## ⚡ Phase 3: The Transformer Frontier (Weeks 7–9)
+
+*Goal: Modernize the paper's impact by conquering the Attention Mechanism.*
+
+### Task: Sentiment Classification on SST-2 using BERT-Mini (or BERT-Base)
+
+* **Where to Apply DADP:**
+* **Attention Weights ($W_Q, W_K, W_V$):** Run the gradient-activation tracking on the projection layers.
+* **MLP Blocks:** Prune the intermediate feed-forward expansion layers ($d_{model} \to 4d_{model}$).
+
+
+* **Reviewer-Proof Nuance:** Transformers are highly sensitive to structured patterns. Unstructured DADP might yield an emergent property where **entire attention heads get zeroed out** (head-level sparsity). You must explicitly track and report this if it happens!
+
+---
+
+## 📊 Phase 4: Diagnostic Plots & Advanced Analysis (Weeks 10–11)
+
+*Goal: Build the exact visualizations that pre-empt reviewer rejections.*
+
+### 1. The Prune-Interval Stability Plot ($\Delta t = 100 \text{ vs } 500 \text{ vs } 1000$)
+
+* **X-Axis:** Training Steps / Epochs.
+* **Y-Axis:** Test Accuracy & Global Sparsity.
+* **Why it matters:** This proves your "temporal expectation" claim. If $\Delta t = 100$ causes high-variance optimization collapse, but $\Delta t = 500$ is stable, it scientifically validates that **time-averaging acts as a stabilizing low-pass filter** over noisy gradient updates.
+
+### 2. Multi-Modal Layer-Wise Sparsity Chart
+
+You already have a great text breakdown for VGG16. For the paper, convert this into a comprehensive visual chart:
+
+Show side-by-side plots for **ResNet-18**, **BiLSTM**, and **BERT**.
+
+* *For BERT:* Group by `Encoder Layer Index` to show if later layers become sparser than early token-embedding layers.
+
+### 3. Compute Efficiency Table (FLOPs vs. Params)
+
+Reviewers will demand to see if DADP yields actual theoretical speedups. Use a library like `deepspeed` or `fvcore` to calculate:
+
+$$\text{Sparsity-adjusted FLOPs} = \text{Dense FLOPs} \times (1 - \text{Sparsity}\%)$$
+
+| Model Paradigm | Method | Params (M) | Sparsity (%) | FLOPs (G) | Test Acc (%) |
+| --- | --- | --- | --- | --- | --- |
+| **ResNet-18 (Vision)** | Dense Baseline | 11.7M | 0% | X.X | XX.X% |
+|  | **DADP ($\tau=1e-5$)** | **Y.YM** | **XX%** | **Y.Y** | **XX.X% (+Regularization)** |
+|  | RigL (Target 80%) | Z.ZM | 80% | Z.Z | XX.X% |
+
+---
+
+## ✍️ Phase 5: Writing, Polishing, and Final Polish (Week 12+)
+
+*Goal: Finalize your draft using your existing theoretical frameworks.*
+
+* **Weave in the Regularization Proof:** Use your "DADP as an Implicit $L_0/L_1$ Data-Dependent Regularizer" paragraph to anchor the Methodology section.
+* **Address "Brain Death":** Frame your hyperparameter sensitivity experiments precisely around this. Use the threshold sensitivity sweeps as your defense line to explain *how* to choose $\tau$ for complex multi-layer topologies.
+
+### Summary Checklist for ICLR Submission Readiness:
+
+* [ ] DADP code adapted to handle PyTorch Hooks for ResNet (Skip Connections), LSTMs, and HuggingFace Transformers.
+* [ ] $\tau$ threshold sweep across all 3 new architectures.
+* [ ] Baselines (SNIP, Magnitude, RigL) completed for all setups.
+* [ ] Sparsity vs. Accuracy curve plots exported in high-res vector format (`.pdf` or `.svg`).
+* [ ] Theoretical section updated with structural risk minimization narratives.
+
+Let's tackle this step-by-step. Which setup or architecture adaptation would you like to build out the precise PyTorch framework hook code for first?

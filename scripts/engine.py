@@ -3,12 +3,18 @@ import torch.nn as nn
 import torch.optim as optim
 import os
 import time
+import json
 from pruning_utils import snip_prune, magnitude_prune, rigl_step, apply_mask, init_random_mask
+from structured_pruning import save_sparse_checkpoint, load_sparse_checkpoint, compress_model_structured
+from model import (
+    get_model_sparsity, get_model_pruned_count, get_model_total_connections,
+    get_model_active_connections, get_model_active_neurons
+)
 
 class Trainer:
     def __init__(self, model, train_loader, test_loader, device, mode='hebbian', lr=0.01, 
                  prune_interval=100, prune_threshold=0.01, sparsity=0.9, rigl_prune_fraction=0.2, 
-                 rigl_interval=100, checkpoint_path='checkpoint.pth'):
+                 rigl_interval=100, output_dir='./results', base_name='experiment'):
         self.model = model.to(device)
         self.train_loader = train_loader
         self.test_loader = test_loader
@@ -16,16 +22,31 @@ class Trainer:
         self.mode = mode
         self.lr = lr
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
-        self.criterion = nn.CrossEntropyLoss()
+        
+        # BiLSTM_CRF manages its own loss
+        self.is_ner = hasattr(self.model, 'tag_to_ix')
+        if not self.is_ner:
+            self.criterion = nn.CrossEntropyLoss()
         
         self.prune_interval = prune_interval
         self.prune_threshold = prune_threshold
         self.sparsity = sparsity
         self.rigl_prune_fraction = rigl_prune_fraction
         self.rigl_interval = rigl_interval
-        self.checkpoint_path = checkpoint_path
-        self.mask_dict = {}
         
+        # Configure output directories separating models (checkpoints) and results (histories)
+        self.output_dir = output_dir
+        self.base_name = base_name
+        self.checkpoint_dir = os.path.join(output_dir, 'models')
+        self.results_dir = os.path.join(output_dir, 'results')
+        
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
+        os.makedirs(self.results_dir, exist_ok=True)
+        
+        self.checkpoint_path = os.path.join(self.checkpoint_dir, f"{base_name}.pth")
+        self.history_path = os.path.join(self.results_dir, f"history_{base_name}.json")
+        
+        self.mask_dict = {}
         self.step = 0
         self.epoch = 0
         self.history = {
@@ -33,12 +54,14 @@ class Trainer:
             'test_loss': [], 'test_acc': [],
             'sparsity': [], 'pruned_count': [],
             'active_connections': [], 'active_neurons': [],
+            'layer_sparsity': {}, # detailed structural logging
             'config': {
                 'mode': self.mode,
                 'prune_threshold': self.prune_threshold,
                 'prune_interval': self.prune_interval,
                 'sparsity': self.sparsity,
-                'lr': self.lr
+                'lr': self.lr,
+                'dataset_samples': len(train_loader.dataset)
             }
         }
         
@@ -56,16 +79,17 @@ class Trainer:
             dy = grad_output[0].detach()
             
             if isinstance(module, nn.Conv2d):
-                # For Conv2d, importance is calculated using the weight-wise gradient logic
-                # using absolute values of activations and gradients.
                 batch_importance = torch.nn.grad.conv2d_weight(
                     x.abs(), module.weight.shape, dy.abs(),
                     stride=module.stride, padding=module.padding, 
                     dilation=module.dilation, groups=module.groups
                 ) / x.size(0)
             else:
-                # Linear layer logic
-                batch_importance = torch.matmul(dy.abs().t(), x.abs()) / x.size(0)
+                # Linear layers & custom LSTM cell projections
+                # Flatten batch and sequence dimensions if input/grad are 3D (e.g. in Transformers)
+                x_flat = x.reshape(-1, x.size(-1))
+                dy_flat = dy.reshape(-1, dy.size(-1))
+                batch_importance = torch.matmul(dy_flat.abs().t(), x_flat.abs()) / x_flat.size(0)
             
             name = module._layer_name
             if name not in self.importance_scores:
@@ -73,7 +97,6 @@ class Trainer:
             self.importance_scores[name] += batch_importance
 
         for name, module in self.model.named_modules():
-            # Use hasattr for robustness
             if hasattr(module, 'mask'):
                 module._layer_name = name
                 self.hooks.append(module.register_forward_hook(hook_fn))
@@ -94,21 +117,25 @@ class Trainer:
             'importance_scores': self.importance_scores,
             'mask_dict': self.mask_dict
         }
-        torch.save(state, self.checkpoint_path)
-        print(f"Checkpoint saved to {self.checkpoint_path}")
+        # Use our new sparsified serializer to save disk space
+        save_sparse_checkpoint(state, self.checkpoint_path)
 
     def load_checkpoint(self):
         if os.path.exists(self.checkpoint_path):
-            state = torch.load(self.checkpoint_path, map_location=self.device)
-            self.epoch = state['epoch']
-            self.step = state['step']
-            self.model.load_state_dict(state['model_state_dict'])
-            self.optimizer.load_state_dict(state['optimizer_state_dict'])
-            self.history = state['history']
-            self.importance_scores = state.get('importance_scores', {})
-            self.mask_dict = state.get('mask_dict', {})
-            print(f"Resumed from epoch {self.epoch}, step {self.step}")
-            return True
+            try:
+                # Use our new sparse deserializer
+                state = load_sparse_checkpoint(self.checkpoint_path, self.device)
+                self.epoch = state['epoch']
+                self.step = state['step']
+                self.model.load_state_dict(state['model_state_dict'])
+                self.optimizer.load_state_dict(state['optimizer_state_dict'])
+                self.history = state['history']
+                self.importance_scores = state.get('importance_scores', {})
+                self.mask_dict = state.get('mask_dict', {})
+                print(f"Resumed from epoch {self.epoch}, step {self.step}")
+                return True
+            except Exception as e:
+                print(f"Failed to load checkpoint: {e}. Starting fresh.")
         return False
 
     def train_epoch(self):
@@ -117,14 +144,17 @@ class Trainer:
         correct = 0
         total = 0
         
-        # Simple character-based progress to avoid heavy dependencies if possible, 
-        # but let's try to use a quiet approach.
         for batch_idx, (data, target) in enumerate(self.train_loader):
             data, target = data.to(self.device), target.to(self.device)
             
             self.optimizer.zero_grad()
-            output = self.model(data)
-            loss = self.criterion(output, target)
+            
+            if self.is_ner:
+                loss = self.model(data, target)
+            else:
+                output = self.model(data)
+                loss = self.criterion(output, target)
+                
             loss.backward()
             self.optimizer.step()
             
@@ -132,9 +162,15 @@ class Trainer:
                 apply_mask(self.model, self.mask_dict)
             
             total_loss += loss.item()
-            _, predicted = output.max(1)
-            total += target.size(0)
-            correct += predicted.eq(target).sum().item()
+            
+            if self.is_ner:
+                predicted = self.model.predict(data)
+                correct += predicted.eq(target.cpu()).sum().item()
+                total += target.numel()
+            else:
+                _, predicted = output.max(1)
+                total += target.size(0)
+                correct += predicted.eq(target).sum().item()
             
             self.step += 1
             if self.mode == 'hebbian' and self.prune_interval > 0 and self.step % self.prune_interval == 0:
@@ -142,13 +178,12 @@ class Trainer:
             elif self.mode == 'rigl' and self.rigl_interval > 0 and self.step % self.rigl_interval == 0:
                 self.mask_dict = rigl_step(self.model, self.mask_dict, self.rigl_prune_fraction)
             
-            # Print a small progress dot or similar every 100 batches to show life
             if batch_idx % 100 == 0:
                 print(".", end="", flush=True)
             
         avg_loss = total_loss / len(self.train_loader)
         acc = 100. * correct / total
-        print(" done.") # End the dot line
+        print(" done.")
         return avg_loss, acc
 
     def evaluate(self):
@@ -159,19 +194,26 @@ class Trainer:
         with torch.no_grad():
             for data, target in self.test_loader:
                 data, target = data.to(self.device), target.to(self.device)
-                output = self.model(data)
-                loss = self.criterion(output, target)
+                
+                if self.is_ner:
+                    loss = self.model(data, target)
+                    predicted = self.model.predict(data)
+                    correct += predicted.eq(target.cpu()).sum().item()
+                    total += target.numel()
+                else:
+                    output = self.model(data)
+                    loss = self.criterion(output, target)
+                    _, predicted = output.max(1)
+                    total += target.size(0)
+                    correct += predicted.eq(target).sum().item()
+                    
                 total_loss += loss.item()
-                _, predicted = output.max(1)
-                total += target.size(0)
-                correct += predicted.eq(target).sum().item()
         
         avg_loss = total_loss / len(self.test_loader)
         acc = 100. * correct / total
         return avg_loss, acc
 
     def prune(self):
-        # Only prune if there are Masked layers
         has_masked = any(hasattr(m, 'mask') for m in self.model.modules())
         if not has_masked:
             return
@@ -201,36 +243,41 @@ class Trainer:
             if self.mode == 'magnitude' and epoch == max(1, num_epochs - 3) and not self.mask_dict:
                 self.mask_dict = magnitude_prune(self.model, self.sparsity)
                 
-            self.epoch = epoch + 1 # Set to next epoch for potential resume
+            self.epoch = epoch + 1
             start_time = time.time()
             
             train_loss, train_acc = self.train_epoch()
             test_loss, test_acc = self.evaluate()
             
-            sparsity = 0
-            pruned_count = 0
-            active_connections = 0
-            active_neurons = 0
+            # Retrieve global metrics using generic helper function
+            sparsity = get_model_sparsity(self.model)
+            pruned_count = get_model_pruned_count(self.model)
+            active_connections = get_model_active_connections(self.model)
+            active_neurons = get_model_active_neurons(self.model)
             
-            # Robust extraction of metrics
-            if self.mode in ['baseline', 'hebbian'] and hasattr(self.model, 'get_sparsity'):
-                sparsity = self.model.get_sparsity()
-                pruned_count = self.model.get_pruned_count()
-                active_connections = self.model.get_active_connections()
-                active_neurons = self.model.get_active_neurons()
-            else:
-                if not self.mask_dict:
-                    sparsity = 0.0
-                    pruned_count = 0
-                    total_connections = sum(p.numel() for n, p in self.model.named_parameters() if 'weight' in n)
-                    active_connections = total_connections
-                    active_neurons = 0
-                else:
-                    total_connections = sum(m.numel() for m in self.mask_dict.values())
-                    active_connections = int(sum(m.sum().item() for m in self.mask_dict.values()))
-                    pruned_count = total_connections - active_connections
-                    sparsity = pruned_count / total_connections if total_connections > 0 else 0
-                    active_neurons = 0
+            # --- DETAILED LAYER-WISE SPARSITY LOGGING ---
+            epoch_key = f"epoch_{self.epoch}"
+            self.history['layer_sparsity'][epoch_key] = {}
+            for name, module in self.model.named_modules():
+                if hasattr(module, 'mask'):
+                    m_mask = module.mask
+                    m_total = m_mask.numel()
+                    m_active = int(m_mask.sum().item())
+                    m_pruned = m_total - m_active
+                    m_sparsity = m_pruned / m_total if m_total > 0 else 0.0
+                    
+                    # Estimate active neurons/filters in this layer
+                    mask_flat = m_mask.view(m_mask.size(0), -1)
+                    m_active_neurons = int((mask_flat.sum(dim=1) > 0).sum().item())
+                    m_total_neurons = m_mask.size(0)
+                    
+                    self.history['layer_sparsity'][epoch_key][name] = {
+                        'sparsity': m_sparsity,
+                        'active_weights': m_active,
+                        'total_weights': m_total,
+                        'active_neurons': m_active_neurons,
+                        'total_neurons': m_total_neurons
+                    }
             
             self.history['train_loss'].append(train_loss)
             self.history['train_acc'].append(train_acc)
@@ -241,9 +288,7 @@ class Trainer:
             self.history.setdefault('active_connections', []).append(active_connections)
             self.history.setdefault('active_neurons', []).append(active_neurons)
             
-            duration = time.time() - start_time
-            
-            # --- NICE TABLE LOGGING ---
+            # Print epoch summary table
             if epoch == 0:
                 header = f"{'Epoch':^7} | {'Tr Loss':^8} | {'Tr Acc':^7} | {'Te Loss':^8} | {'Te Acc':^7} | {'Sparsity':^8} | {'Active':^10}"
                 print("\n" + "="*75)
@@ -258,5 +303,9 @@ class Trainer:
                 print("="*75 + "\n")
             
             self.save_checkpoint()
+            
+            # Save small history JSON file dynamically
+            with open(self.history_path, 'w') as f:
+                json.dump(self.history, f, indent=4)
         
         return self.history
