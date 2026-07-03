@@ -1,9 +1,17 @@
+import sys
+import os
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import numpy as np
 import os
 import argparse
+
+# Ensure the scripts directory is in sys.path so sister imports (model, structured_pruning) work from any context
+scripts_dir = os.path.dirname(os.path.abspath(__file__))
+if scripts_dir not in sys.path:
+    sys.path.insert(0, scripts_dir)
+
 from model import MaskedLinear, HebbianMLP
 
 def plot_mlp_pruning(model, save_path="pruned_mlp_visualization.png", max_neurons_per_layer=15, title="MLP Structural Pruning Visualization"):
@@ -173,11 +181,66 @@ def generate_toy_visualization(save_path="results/toy_mlp_pruned.png"):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Visualize pruned MLP network")
     parser.add_argument('--toy', action='store_true', help="Generate toy MLP visualization")
+    parser.add_argument('--checkpoint', type=str, default=None, help="Path to PyTorch model checkpoint (.pth)")
     parser.add_argument('--output', type=str, default="results/toy_mlp_pruned.png", help="Output visualization path")
+    parser.add_argument('--input_size', type=int, default=784, help="Input features size (default: 784 for MNIST)")
+    parser.add_argument('--hidden_size', type=int, default=512, help="Hidden layers feature size (default: 512)")
+    parser.add_argument('--num_classes', type=int, default=10, help="Output classes count (default: 10)")
     args = parser.parse_args()
     
     if args.toy:
         generate_toy_visualization(args.output)
+    elif args.checkpoint:
+        from structured_pruning import load_sparse_checkpoint
+        
+        print(f"Loading checkpoint from: {args.checkpoint}")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        # Load sparse checkpoint
+        try:
+            checkpoint = load_sparse_checkpoint(args.checkpoint, device)
+        except Exception as e:
+            print(f"Error loading sparse checkpoint: {e}. Trying standard torch.load...")
+            checkpoint = torch.load(args.checkpoint, map_location=device)
+            
+        # Instantiate model structure
+        model = HebbianMLP(input_size=args.input_size, hidden_size=args.hidden_size, num_classes=args.num_classes)
+        model.to(device)
+        
+        # Extract model state dict
+        if 'model_state_dict' in checkpoint:
+            state_dict = checkpoint['model_state_dict']
+        else:
+            state_dict = checkpoint
+            
+        model.load_state_dict(state_dict)
+        print("Model checkpoint loaded successfully.")
+        
+        # Calculate actual connection sparsity
+        total_conn = 0
+        pruned_conn = 0
+        for m in model.modules():
+            if isinstance(m, MaskedLinear):
+                total_conn += m.mask.numel()
+                pruned_conn += (m.mask == 0).sum().item()
+        
+        sparsity_pct = (pruned_conn / total_conn * 100) if total_conn > 0 else 0.0
+        
+        # Create output plot title
+        checkpoint_name = os.path.basename(args.checkpoint)
+        title = f"DADP Pruned MLP ({checkpoint_name})\nSparsity: {sparsity_pct:.2f}% ({pruned_conn}/{total_conn} connections pruned)"
+        
+        print(f"Plotting model with shape: Input={args.input_size}, Hidden={args.hidden_size}, Output={args.num_classes}")
+        print(f"Current sparsity: {sparsity_pct:.2f}%")
+        
+        plot_mlp_pruning(
+            model,
+            save_path=args.output,
+            max_neurons_per_layer=15,
+            title=title
+        )
     else:
-        # Load a model and visualize it
-        print("To visualize a real model, import plot_mlp_pruning in your pipeline.")
+        parser.print_help()
+        print("\nExample usage:")
+        print("  python scripts/visualize_network.py --checkpoint results/mnist/mlp_mnist_epoch20/models/hebbian_mlp_MNIST_thr1e-05_dt500.pth --output results/mnist_mlp_pruned.png")
+
