@@ -44,11 +44,14 @@ class Trainer:
         os.makedirs(self.results_dir, exist_ok=True)
         
         self.checkpoint_path = os.path.join(self.checkpoint_dir, f"{base_name}.pth")
+        self.checkpoint_best_path = os.path.join(self.checkpoint_dir, f"{base_name}_best.pth")
         self.history_path = os.path.join(self.results_dir, f"history_{base_name}.json")
         
         self.mask_dict = {}
         self.step = 0
         self.epoch = 0
+        self.best_test_acc = 0.0
+        self.epochs_no_improve = 0
         self.history = {
             'train_loss': [], 'train_acc': [],
             'test_loss': [], 'test_acc': [],
@@ -109,7 +112,7 @@ class Trainer:
             hook.remove()
         self.hooks = []
 
-    def save_checkpoint(self):
+    def save_checkpoint(self, is_best=False):
         state = {
             'epoch': self.epoch,
             'step': self.step,
@@ -119,8 +122,9 @@ class Trainer:
             'importance_scores': self.importance_scores,
             'mask_dict': self.mask_dict
         }
+        path = self.checkpoint_best_path if is_best else self.checkpoint_path
         # Use our new sparsified serializer to save disk space
-        save_sparse_checkpoint(state, self.checkpoint_path)
+        save_sparse_checkpoint(state, path)
 
     def load_checkpoint(self):
         if os.path.exists(self.checkpoint_path):
@@ -304,7 +308,24 @@ class Trainer:
             if epoch == num_epochs - 1:
                 print("="*75 + "\n")
             
-            self.save_checkpoint()
+            self.save_checkpoint(is_best=False)
+            
+            # Check for best test accuracy
+            if test_acc > self.best_test_acc:
+                self.best_test_acc = test_acc
+                self.epochs_no_improve = 0
+                self.save_checkpoint(is_best=True)
+                print(f"--> New best test accuracy: {self.best_test_acc:.2f}% (Best model saved)")
+            else:
+                self.epochs_no_improve += 1
+                
+            # Early stopping (patience = 5)
+            if self.epochs_no_improve >= 5:
+                print(f"\n[Early Stopping] Triggered after 5 epochs without test accuracy improvement.")
+                print(f"Best Test Accuracy: {self.best_test_acc:.2f}%")
+                if epoch != num_epochs - 1:
+                    print("="*75 + "\n")
+                break
             
             # Save small history JSON file dynamically
             with open(self.history_path, 'w') as f:
