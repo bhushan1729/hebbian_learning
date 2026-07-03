@@ -21,9 +21,9 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 class DualLogger:
-    def __init__(self, filepath):
+    def __init__(self, filepath, mode="w"):
         self.terminal = sys.stdout
-        self.log = open(filepath, "w", encoding="utf-8")
+        self.log = open(filepath, mode, encoding="utf-8")
 
     def write(self, message):
         self.terminal.write(message)
@@ -84,10 +84,11 @@ def main():
         elif args.mode in ['snip', 'magnitude', 'rigl']:
             base_name += f"_sp{args.sparsity}"
 
-    # Set up dual logging to both console and file
+    # Set up dual logging to both console and file (append if resuming, else write fresh)
     logs_dir = os.path.join(args.output_dir, 'logs')
     os.makedirs(logs_dir, exist_ok=True)
-    sys.stdout = DualLogger(os.path.join(logs_dir, f"{base_name}.log"))
+    log_mode = "a" if args.resume_from else "w"
+    sys.stdout = DualLogger(os.path.join(logs_dir, f"{base_name}.log"), mode=log_mode)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
