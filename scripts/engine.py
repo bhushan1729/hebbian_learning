@@ -14,7 +14,8 @@ from model import (
 class Trainer:
     def __init__(self, model, train_loader, test_loader, device, mode='hebbian', lr=0.01, 
                  prune_interval=100, prune_threshold=0.01, sparsity=0.9, rigl_prune_fraction=0.2, 
-                 rigl_interval=100, output_dir='./results', base_name='experiment', config=None):
+                 rigl_interval=100, output_dir='./results', base_name='experiment', config=None,
+                 early_stopping=False):
         self.model = model.to(device)
         self.train_loader = train_loader
         self.test_loader = test_loader
@@ -33,6 +34,7 @@ class Trainer:
         self.sparsity = sparsity
         self.rigl_prune_fraction = rigl_prune_fraction
         self.rigl_interval = rigl_interval
+        self.early_stopping = early_stopping
         
         # Configure output directories separating models (checkpoints) and results (histories)
         self.output_dir = output_dir
@@ -320,7 +322,7 @@ class Trainer:
                 self.epochs_no_improve += 1
                 
             # Early stopping (patience = 5)
-            if self.epochs_no_improve >= 5:
+            if self.early_stopping and self.epochs_no_improve >= 5:
                 print(f"\n[Early Stopping] Triggered after 5 epochs without test accuracy improvement.")
                 print(f"Best Test Accuracy: {self.best_test_acc:.2f}%")
                 if epoch != num_epochs - 1:

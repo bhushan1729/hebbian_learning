@@ -2,12 +2,37 @@ import argparse
 import os
 import torch
 import json
+import sys
 from data_loader import get_data_loaders
 from model import (
     BaselineMLP, BaselineCNN, BaselineVGG16, get_resnet18, BiLSTM_CRF, 
     get_mini_transformer, convert_to_masked_model
 )
 from engine import Trainer
+
+def str2bool(v):
+    if isinstance(v, bool):
+       return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+class DualLogger:
+    def __init__(self, filepath):
+        self.terminal = sys.stdout
+        self.log = open(filepath, "w", encoding="utf-8")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+        self.log.flush()
+
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
 
 def main():
     parser = argparse.ArgumentParser(description='DADP & Baseline Pruning Benchmarking Pipeline')
@@ -27,6 +52,7 @@ def main():
     parser.add_argument('--output_dir', type=str, default='./results', help='Directory for results')
     parser.add_argument('--exp_name', type=str, default=None, help='Custom name for this experiment run')
     parser.add_argument('--structured_prune', action='store_true', help='apply physical structured pruning to compress the network after training')
+    parser.add_argument('--early_stopping', type=str2bool, default=False, help='enable early stopping (True or False)')
     
     args = parser.parse_args()
 
@@ -46,6 +72,21 @@ def main():
     if args.mode == 'baseline':
         args.prune_interval = 0
         args.prune_threshold = 0.0
+
+    # Naming logic
+    if args.exp_name:
+        base_name = args.exp_name
+    else:
+        base_name = f"{args.mode}_{args.arch}_{args.dataset}"
+        if args.mode == 'hebbian':
+            base_name += f"_thr{args.prune_threshold}_dt{args.prune_interval}"
+        elif args.mode in ['snip', 'magnitude', 'rigl']:
+            base_name += f"_sp{args.sparsity}"
+
+    # Set up dual logging to both console and file
+    logs_dir = os.path.join(args.output_dir, 'logs')
+    os.makedirs(logs_dir, exist_ok=True)
+    sys.stdout = DualLogger(os.path.join(logs_dir, f"{base_name}.log"))
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -87,16 +128,6 @@ def main():
     # This enables unified metric extraction and masking.
     if args.mode != 'baseline':
         model = convert_to_masked_model(model)
-
-    # Naming logic
-    if args.exp_name:
-        base_name = args.exp_name
-    else:
-        base_name = f"{args.mode}_{args.arch}_{args.dataset}"
-        if args.mode == 'hebbian':
-            base_name += f"_thr{args.prune_threshold}_dt{args.prune_interval}"
-        elif args.mode in ['snip', 'magnitude', 'rigl']:
-            base_name += f"_sp{args.sparsity}"
             
     # Prepare complete dictionary of CLI hyperparameters and output paths
     config_dict = vars(args).copy()
@@ -120,7 +151,8 @@ def main():
         rigl_interval=args.rigl_interval,
         output_dir=args.output_dir,
         base_name=base_name,
-        config=config_dict
+        config=config_dict,
+        early_stopping=args.early_stopping
     )
 
     # Auto-resume if checkpoint exists
