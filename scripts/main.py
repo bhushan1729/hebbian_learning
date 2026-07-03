@@ -53,6 +53,7 @@ def main():
     parser.add_argument('--exp_name', type=str, default=None, help='Custom name for this experiment run')
     parser.add_argument('--structured_prune', action='store_true', help='apply physical structured pruning to compress the network after training')
     parser.add_argument('--early_stopping', type=str2bool, default=False, help='enable early stopping (True or False)')
+    parser.add_argument('--resume_from', type=str2bool, default=False, help='resume from checkpoint if exists (True or False)')
     
     args = parser.parse_args()
 
@@ -155,8 +156,20 @@ def main():
         early_stopping=args.early_stopping
     )
 
-    # Auto-resume if checkpoint exists
-    trainer.load_checkpoint()
+    # Auto-resume if checkpoint exists and requested, else clean start
+    if args.resume_from:
+        trainer.load_checkpoint()
+    else:
+        # Overwrite: delete existing checkpoints and history for this run to start fresh
+        if os.path.exists(trainer.checkpoint_path):
+            os.remove(trainer.checkpoint_path)
+            print(f"Removed old checkpoint at {trainer.checkpoint_path} to start from scratch.")
+        if os.path.exists(trainer.checkpoint_best_path):
+            os.remove(trainer.checkpoint_best_path)
+            print(f"Removed old best checkpoint at {trainer.checkpoint_best_path} to start from scratch.")
+        if os.path.exists(trainer.history_path):
+            os.remove(trainer.history_path)
+            print(f"Removed old history file at {trainer.history_path} to start from scratch.")
 
     # Run Training
     history = trainer.run(args.epochs)
