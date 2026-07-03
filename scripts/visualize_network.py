@@ -75,7 +75,11 @@ def plot_mlp_pruning(model, save_path="pruned_mlp_visualization.png", max_neuron
     
     # Connection line properties: dynamically scale down thickness & alpha for large nets
     max_layer_drawn_size = max(len(indices) for indices in sampled_indices)
-    scale_factor = min(1.0, 30.0 / max_layer_drawn_size) if max_layer_drawn_size > 0 else 1.0
+    scale_factor = min(1.0, 50.0 / max_layer_drawn_size) if max_layer_drawn_size > 0 else 1.0
+    
+    # Square root scaling for alpha prevents it from fading out too aggressively in large graphs
+    connection_alpha = max(0.18, 0.8 * (scale_factor ** 0.5))
+    connection_lw_scale = max(0.15, scale_factor)
     
     # First, draw connections (so they appear behind the nodes)
     for l_idx in range(num_layers - 1):
@@ -103,11 +107,10 @@ def plot_mlp_pruning(model, save_path="pruned_mlp_visualization.png", max_neuron
                 m_val = mask[d_idx, s_idx].item()
                 
                 if m_val > 0:
-                    # Active connection: draw solid colored line
-                    color = "#1f77b4" if w_val >= 0 else "#d62728" # Blue for positive, Red for negative
-                    linewidth = (0.5 + 2.5 * (abs(w_val) / max_w)) * scale_factor
-                    alpha = 0.7 * scale_factor
-                    ax.plot([x1, x2], [y1, y2], color=color, linewidth=linewidth, alpha=alpha, zorder=1)
+                    # Active connection: draw solid colored line (darker Navy/Crimson for high contrast when thin)
+                    color = "#0d47a1" if w_val >= 0 else "#b71c1c" # Navy for positive, Crimson for negative
+                    linewidth = max(0.12, (0.5 + 2.5 * (abs(w_val) / max_w)) * connection_lw_scale)
+                    ax.plot([x1, x2], [y1, y2], color=color, linewidth=linewidth, alpha=connection_alpha, zorder=1)
                 elif draw_pruned_paths:
                     # Pruned connection: draw faint, dotted gray line
                     ax.plot([x1, x2], [y1, y2], color="gray", linewidth=0.2, alpha=0.15 * scale_factor, linestyle="dotted", zorder=0)
