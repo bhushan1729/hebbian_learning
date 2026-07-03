@@ -98,7 +98,14 @@ def main():
         elif args.mode in ['snip', 'magnitude', 'rigl']:
             base_name += f"_sp{args.sparsity}"
             
-    # Initialize Trainer with output splitting
+    # Prepare complete dictionary of CLI hyperparameters and output paths
+    config_dict = vars(args).copy()
+    config_dict['model_checkpoint_path'] = os.path.join(args.output_dir, 'models', f"{base_name}.pth")
+    config_dict['history_json_path'] = os.path.join(args.output_dir, 'results', f"history_{base_name}.json")
+    if args.structured_prune:
+        config_dict['structured_compressed_checkpoint_path'] = os.path.join(args.output_dir, 'models', f"{base_name}_structured_compressed.pth")
+
+    # Initialize Trainer with output splitting and configuration logging
     trainer = Trainer(
         model=model,
         train_loader=train_loader,
@@ -112,7 +119,8 @@ def main():
         rigl_prune_fraction=args.rigl_prune_fraction,
         rigl_interval=args.rigl_interval,
         output_dir=args.output_dir,
-        base_name=base_name
+        base_name=base_name,
+        config=config_dict
     )
 
     # Auto-resume if checkpoint exists

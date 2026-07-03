@@ -14,7 +14,7 @@ from model import (
 class Trainer:
     def __init__(self, model, train_loader, test_loader, device, mode='hebbian', lr=0.01, 
                  prune_interval=100, prune_threshold=0.01, sparsity=0.9, rigl_prune_fraction=0.2, 
-                 rigl_interval=100, output_dir='./results', base_name='experiment'):
+                 rigl_interval=100, output_dir='./results', base_name='experiment', config=None):
         self.model = model.to(device)
         self.train_loader = train_loader
         self.test_loader = test_loader
@@ -64,6 +64,8 @@ class Trainer:
                 'dataset_samples': len(train_loader.dataset)
             }
         }
+        if config is not None:
+            self.history['config'].update(config)
         
         # Importance tracking
         self.importance_scores = {}
