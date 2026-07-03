@@ -106,27 +106,33 @@ def plot_mlp_pruning(model, save_path="pruned_mlp_visualization.png", max_neuron
             x, y = node_positions[(l_idx, orig_idx)]
             
             is_active = False
-            # Check active status based on masks
+            # Check active status based on masks, restricted to only the drawn/sampled nodes to prevent visual mismatch
             if l_idx == 0:
-                # Input layer: active if any mask[any_dst, orig_idx] is 1 in layer 0
+                # Input layer: active if any outgoing mask to drawn hidden neurons is 1
                 mask = getattr(layers[0], 'mask', None)
                 if mask is not None:
-                    is_active = (mask[:, orig_idx].sum() > 0).item()
+                    dst_indices = sampled_indices[1]
+                    is_active = (mask[dst_indices, orig_idx].sum() > 0).item()
                 else:
                     is_active = True
             elif l_idx == num_layers - 1:
-                # Output layer: active if any mask[orig_idx, any_src] is 1 in last layer
+                # Output layer: active if any incoming mask from drawn hidden neurons is 1
                 mask = getattr(layers[-1], 'mask', None)
                 if mask is not None:
-                    is_active = (mask[orig_idx, :].sum() > 0).item()
+                    src_indices = sampled_indices[-2]
+                    is_active = (mask[orig_idx, src_indices].sum() > 0).item()
                 else:
                     is_active = True
             else:
-                # Hidden layer: active if active outgoing from previous layer or active incoming to next layer
+                # Hidden layer: active if it has both drawn incoming and drawn outgoing active connections
                 mask_in = getattr(layers[l_idx - 1], 'mask', None)
                 mask_out = getattr(layers[l_idx], 'mask', None)
-                in_active = (mask_in[orig_idx, :].sum() > 0).item() if mask_in is not None else True
-                out_active = (mask_out[:, orig_idx].sum() > 0).item() if mask_out is not None else True
+                
+                src_indices = sampled_indices[l_idx - 1]
+                dst_indices = sampled_indices[l_idx + 1]
+                
+                in_active = (mask_in[orig_idx, src_indices].sum() > 0).item() if mask_in is not None else True
+                out_active = (mask_out[dst_indices, orig_idx].sum() > 0).item() if mask_out is not None else True
                 is_active = in_active and out_active
                 
             # Styling nodes

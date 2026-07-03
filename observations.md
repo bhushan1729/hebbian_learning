@@ -46,3 +46,18 @@ When training with a fixed pruning threshold (e.g. `1e-5`), the network does not
 ### 🧪 Supporting Evidence (100-Epoch Limit Test)
 *   Between **Epoch 70 (97.76% sparsity)** and **Epoch 100 (98.00% sparsity)**, the network only pruned a total of **0.24%** of its weights.
 *   **Overfitting Boundary**: Training accuracy remained high ($99.53\%$), but test accuracy decayed slightly from a peak of **$97.69\%$ (Epoch 11)** to **$96.94\%$ (Epoch 100)**, while test loss rose from **$0.0945 \rightarrow 0.2277$**, indicating that at $98\%$ sparsity, the model's capacity limit has been exceeded, leading to slight overfitting/memorization.
+
+---
+
+## 🔍 Observation 3: Emergent Dead Neuron Pruning (Emergent Property)
+
+### 📈 Behavior Description
+Although DADP is fundamentally an unstructured connection-pruning algorithm (deleting individual weights based on Hebbian importance $|x \cdot dy|$), we observed the **emergence of structured neuron pruning**:
+*   As the sparse training proceeds, certain intermediate neurons lose either **all incoming connections** or **all outgoing connections** (or both).
+*   Since information cannot flow through these isolated nodes, they become functionally inactive (dead) and contribute nothing to the network representation.
+*   Thus, structured neuron pruning emerges naturally from the local unstructured dynamics without requiring any explicit group sparsity constraints or layer-level pruning directives.
+
+### 🧪 Supporting Evidence (100-Epoch Limit Test)
+*   **Result Log File**: [`logs/hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.log`](file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/logs/hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.log)
+*   **Result Plot**: [`plots/hebbian_mlp_MNIST_thr0.0001_dt10_visualization.png`](file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/plots/hebbian_mlp_MNIST_thr0.0001_dt10_visualization.png)
+*   **Visual Proof**: In the generated connection topology plots, multiple nodes in `Hidden 1` and `Hidden 2` have no incoming or outgoing connections colored active. These neurons are colored gray (inactive), representing physically dead units that have been automatically pruned out by DADP.
