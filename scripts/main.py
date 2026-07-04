@@ -124,7 +124,7 @@ def main():
     elif args.arch == 'bilstm_crf':
         vocab_size = getattr(train_loader, 'vocab_size', 5000)
         tag_to_ix = getattr(train_loader, 'tag_to_ix', None)
-        model = BiLSTM_CRF(vocab_size=vocab_size, tag_to_ix=tag_to_ix, embedding_dim=128, hidden_dim=128, masked=False)
+        model = BiLSTM_CRF(vocab_size=vocab_size, tag_to_ix=tag_to_ix, embedding_dim=128, hidden_dim=128, masked=(args.mode != 'baseline'))
     elif args.arch == 'transformer':
         model = get_mini_transformer(vocab_size=5000, num_classes=num_classes, masked=False)
 

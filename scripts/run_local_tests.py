@@ -177,7 +177,7 @@ class TestDADPPipeline(unittest.TestCase):
             elif arch == 'bilstm_crf':
                 vocab_size = getattr(train_loader, 'vocab_size', 5000)
                 tag_to_ix = getattr(train_loader, 'tag_to_ix', None)
-                model = BiLSTM_CRF(vocab_size=vocab_size, tag_to_ix=tag_to_ix, embedding_dim=16, hidden_dim=16, masked=False)
+                model = BiLSTM_CRF(vocab_size=vocab_size, tag_to_ix=tag_to_ix, embedding_dim=16, hidden_dim=16, masked=True)
                 
             model = convert_to_masked_model(model)
             
