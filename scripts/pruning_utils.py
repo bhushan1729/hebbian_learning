@@ -124,6 +124,14 @@ def rigl_step(model, mask_dict, prune_fraction=0.2):
 
 def apply_mask(model, mask_dict):
     with torch.no_grad():
+        # Synchronize mask_dict with layer .mask buffers
+        for name, module in model.named_modules():
+            if hasattr(module, 'mask'):
+                weight_name = f"{name}.weight"
+                if weight_name in mask_dict:
+                    module.mask.copy_(mask_dict[weight_name])
+                    
+        # Apply mask to parameters to keep weights zeroed out
         for name, p in model.named_parameters():
             if name in mask_dict:
                 p.mul_(mask_dict[name])

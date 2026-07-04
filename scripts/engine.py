@@ -244,12 +244,15 @@ class Trainer:
         if self.epoch == 0:
             if self.mode == 'snip':
                 self.mask_dict = snip_prune(self.model, self.criterion, self.train_loader, self.device, self.sparsity)
+                apply_mask(self.model, self.mask_dict)
             elif self.mode == 'rigl':
                 self.mask_dict = init_random_mask(self.model, self.sparsity)
+                apply_mask(self.model, self.mask_dict)
 
         for epoch in range(self.epoch, num_epochs):
             if self.mode == 'magnitude' and epoch == max(1, num_epochs - 3) and not self.mask_dict:
                 self.mask_dict = magnitude_prune(self.model, self.sparsity)
+                apply_mask(self.model, self.mask_dict)
                 
             self.epoch = epoch + 1
             start_time = time.time()
