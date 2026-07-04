@@ -48,6 +48,89 @@ class SyntheticTextDataset(Dataset):
     def __getitem__(self, idx):
         return self.inputs[idx], self.targets[idx]
 
+class CoNLLWordDataset(Dataset):
+    def __init__(self, sentences, labels, word2idx, label2idx):
+        self.sentences = sentences
+        self.labels = labels
+        self.word2idx = word2idx
+        self.label2idx = label2idx
+        
+    def __len__(self):
+        return len(self.sentences)
+        
+    def __getitem__(self, idx):
+        word_ids = [self.word2idx.get(w, self.word2idx['<UNK>']) for w in self.sentences[idx]]
+        label_ids = [self.label2idx[l] for l in self.labels[idx]]
+        return torch.tensor(word_ids, dtype=torch.long), torch.tensor(label_ids, dtype=torch.long)
+
+def download_conll2003(data_dir):
+    import urllib.request
+    os.makedirs(data_dir, exist_ok=True)
+    base_url = "https://raw.githubusercontent.com/patverga/torch-ner-nlp-from-scratch/master/data/conll2003/"
+    file_mapping = {
+        'train': 'eng.train',
+        'valid': 'eng.testa',
+        'test': 'eng.testb'
+    }
+    for split, filename in file_mapping.items():
+        out_path = os.path.join(data_dir, f"{split}.txt")
+        if os.path.exists(out_path):
+            continue
+        url = base_url + filename
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=30) as response:
+                content = response.read().decode('utf-8')
+            with open(out_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+        except Exception as e:
+            # Fallback source
+            alt_url = f"https://data.deepai.org/conll2003/{filename}"
+            req = urllib.request.Request(alt_url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=30) as response:
+                content = response.read().decode('utf-8')
+            with open(out_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+    return data_dir
+
+def read_conll_file(filepath):
+    sentences = []
+    labels = []
+    curr_sent = []
+    curr_labels = []
+    with open(filepath, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                if curr_sent:
+                    sentences.append(curr_sent)
+                    labels.append(curr_labels)
+                    curr_sent = []
+                    curr_labels = []
+                continue
+            if line.startswith('-DOCSTART-'):
+                continue
+            parts = line.split()
+            if len(parts) >= 4:
+                curr_sent.append(parts[0])
+                curr_labels.append(parts[3])
+    if curr_sent:
+        sentences.append(curr_sent)
+        labels.append(curr_labels)
+    return sentences, labels
+
+def collate_fn_ner(batch):
+    sentences, labels = zip(*batch)
+    lengths = torch.tensor([len(s) for s in sentences])
+    max_len = lengths.max().item()
+    padded_sentences = torch.zeros(len(sentences), max_len, dtype=torch.long)
+    padded_labels = torch.zeros(len(labels), max_len, dtype=torch.long)
+    for i, (sent, lbl) in enumerate(zip(sentences, labels)):
+        length = len(sent)
+        padded_sentences[i, :length] = sent
+        padded_labels[i, :length] = lbl
+    return padded_sentences, padded_labels, lengths
+
 def get_data_loaders(dataset_name='MNIST', batch_size=64, data_dir='./data'):
     """
     Get data loaders for MNIST, CIFAR10, SST2, IMDB, and CoNLL2003.
@@ -136,42 +219,57 @@ def get_data_loaders(dataset_name='MNIST', batch_size=64, data_dir='./data'):
 
     elif dataset_name == 'CoNLL2003':
         try:
-            from datasets import load_dataset
-            from transformers import AutoTokenizer
+            print("Attempting to load word-level CoNLL2003 dataset...")
+            raw_dir = os.path.join(data_dir, 'conll2003_raw')
+            download_conll2003(raw_dir)
             
-            print("Attempting to load CoNLL2003 from HuggingFace...")
-            tokenizer = AutoTokenizer.from_pretrained("prajjwal1/bert-mini")
-            hf_dataset = load_dataset("conll2003", cache_dir=data_dir)
+            # Read files
+            train_sents, train_lbls = read_conll_file(os.path.join(raw_dir, 'train.txt'))
+            test_sents, test_lbls = read_conll_file(os.path.join(raw_dir, 'test.txt'))
             
-            def align_and_tokenize(examples):
-                token_ids_batch = []
-                tags_batch = []
-                for tokens, tags in zip(examples['tokens'], examples['ner_tags']):
-                    text = " ".join(tokens)
-                    encoding = tokenizer(text, padding='max_length', truncation=True, max_length=64)
-                    token_ids = encoding['input_ids']
-                    aligned_tags = tags[:64]
-                    aligned_tags = aligned_tags + [0] * (64 - len(aligned_tags))
+            # Build vocabularies
+            word_counter = {}
+            for sent in train_sents:
+                for word in sent:
+                    word_counter[word] = word_counter.get(word, 0) + 1
+            
+            word2idx = {'<PAD>': 0, '<UNK>': 1}
+            for word, freq in word_counter.items():
+                if freq >= 2: # min_freq = 2
+                    word2idx[word] = len(word2idx)
                     
-                    token_ids_batch.append(token_ids)
-                    tags_batch.append(aligned_tags)
-                return {'input_ids': token_ids_batch, 'ner_tags': tags_batch}
-                
-            processed = hf_dataset.map(align_and_tokenize, batched=True)
+            label_set = set()
+            for lbls in train_lbls:
+                label_set.update(lbls)
+            label2idx = {label: idx for idx, label in enumerate(sorted(label_set))}
             
-            train_input_ids = torch.tensor(processed['train']['input_ids'])
-            train_tags = torch.tensor(processed['train']['ner_tags'])
-            test_input_ids = torch.tensor(processed['validation']['input_ids'])
-            test_tags = torch.tensor(processed['validation']['ner_tags'])
+            train_dataset = CoNLLWordDataset(train_sents, train_lbls, word2idx, label2idx)
+            test_dataset = CoNLLWordDataset(test_sents, test_lbls, word2idx, label2idx)
             
-            train_dataset = TensorDataset(train_input_ids, train_tags)
-            test_dataset = TensorDataset(test_input_ids, test_tags)
-            print("Successfully loaded HF CoNLL2003 dataset.")
+            print(f"Successfully loaded word-level CoNLL2003. Vocab size: {len(word2idx)}, Labels: {len(label2idx)}")
+            
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn_ner)
+            test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn_ner)
+            
+            # Attach vocab metadata for model initialization
+            train_loader.vocab_size = len(word2idx)
+            train_loader.tag_to_ix = label2idx
+            
+            return train_loader, test_loader
             
         except Exception as e:
-            print(f"Could not load HF datasets for CoNLL2003: {e}. Falling back to synthetic text labeling (NER) dataset.")
+            print(f"Could not load word-level CoNLL2003: {e}. Falling back to synthetic text labeling (NER) dataset.")
             train_dataset = SyntheticTextDataset(task_type='labeling', vocab_size=5000, seq_len=64, num_samples=256, num_classes=9)
             test_dataset = SyntheticTextDataset(task_type='labeling', vocab_size=5000, seq_len=64, num_samples=128, num_classes=9)
+            
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn_ner)
+            test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn_ner)
+            
+            # Attach default fallback metadata
+            train_loader.vocab_size = 5000
+            train_loader.tag_to_ix = {str(i): i for i in range(9)}
+            
+            return train_loader, test_loader
             
     else:
         raise ValueError(f"Dataset {dataset_name} not supported yet.")

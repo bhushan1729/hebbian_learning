@@ -39,8 +39,11 @@ class TestDADPPipeline(unittest.TestCase):
             self.assertIsNotNone(train_loader)
             self.assertIsNotNone(test_loader)
             
-            # Check shape of a batch
-            x, y = next(iter(train_loader))
+            batch = next(iter(train_loader))
+            if len(batch) == 3:
+                x, y, lengths = batch
+            else:
+                x, y = batch
             self.assertEqual(x.size(0), 4)
             
             # For sequence tasks, verify dimensions
@@ -172,7 +175,9 @@ class TestDADPPipeline(unittest.TestCase):
             elif arch == 'transformer':
                 model = get_mini_transformer(vocab_size=5000, num_classes=num_classes, masked=False)
             elif arch == 'bilstm_crf':
-                model = BiLSTM_CRF(vocab_size=5000, embedding_dim=16, hidden_dim=16, masked=False)
+                vocab_size = getattr(train_loader, 'vocab_size', 5000)
+                tag_to_ix = getattr(train_loader, 'tag_to_ix', None)
+                model = BiLSTM_CRF(vocab_size=vocab_size, tag_to_ix=tag_to_ix, embedding_dim=16, hidden_dim=16, masked=False)
                 
             model = convert_to_masked_model(model)
             

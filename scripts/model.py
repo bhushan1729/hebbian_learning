@@ -333,78 +333,94 @@ class MaskedLSTM(nn.Module):
 
 class CRF(nn.Module):
     """
-    Self-contained CRF layer implementing Viterbi and Forward algorithms.
+    Self-contained CRF layer implementing Viterbi and Forward algorithms
+    with support for sequence masking and start/end tags.
     """
     def __init__(self, num_tags):
         super(CRF, self).__init__()
         self.num_tags = num_tags
-        # Transition parameters: transitions[i, j] = score of transitioning from j to i
+        # Transition parameters: transitions[i, j] = score of transitioning from tag j to tag i
         self.transitions = nn.Parameter(torch.randn(num_tags, num_tags))
+        self.start_transitions = nn.Parameter(torch.randn(num_tags))
+        self.end_transitions = nn.Parameter(torch.randn(num_tags))
         
-    def forward_alg(self, feats):
-        # Forward algorithm to compute partition function (normalizer)
-        batch_size, seq_len, num_tags = feats.shape
-        init_alphas = torch.full((batch_size, num_tags), -10000.0, device=feats.device)
-        init_alphas[:, 0] = 0.0 # start tag index
-        
-        forward_var = init_alphas
-        for i in range(seq_len):
-            feat = feats[:, i, :]
-            # broadcast transition scores
-            emit_score = feat.unsqueeze(2) # (B, T, 1)
-            trans_score = self.transitions.unsqueeze(0) # (1, T, T)
-            next_tag_var = forward_var.unsqueeze(1) + trans_score + emit_score # (B, T, T)
-            forward_var = torch.logsumexp(next_tag_var, dim=2)
+    def forward_alg(self, emissions, mask=None):
+        if mask is None:
+            mask = torch.ones(emissions.shape[:2], dtype=torch.bool, device=emissions.device)
             
-        return torch.logsumexp(forward_var, dim=1)
-
-    def score_sentence(self, feats, tags):
-        # Score of gold sentence
-        batch_size, seq_len, _ = feats.shape
-        score = torch.zeros(batch_size, device=feats.device)
+        batch_size, seq_len, num_tags = emissions.shape
+        alpha = self.start_transitions + emissions[:, 0]
         
-        # Add transitions
-        for i in range(seq_len):
-            feat = feats[:, i, :]
-            score += feat[torch.arange(batch_size), tags[:, i]]
-            if i > 0:
-                score += self.transitions[tags[:, i], tags[:, i-1]]
+        for t in range(1, seq_len):
+            emit_scores = emissions[:, t].unsqueeze(1) # [batch, 1, num_tags]
+            trans_scores = self.transitions.unsqueeze(0) # [1, num_tags, num_tags]
+            alpha_broadcast = alpha.unsqueeze(2) # [batch, num_tags, 1]
+            
+            next_alpha = alpha_broadcast + trans_scores + emit_scores
+            next_alpha = torch.logsumexp(next_alpha, dim=1)
+            
+            # Apply mask
+            alpha = next_alpha * mask[:, t].unsqueeze(1) + alpha * (~mask[:, t]).unsqueeze(1)
+            
+        alpha = alpha + self.end_transitions
+        return torch.logsumexp(alpha, dim=1)
+
+    def score_sentence(self, emissions, tags, mask=None):
+        if mask is None:
+            mask = torch.ones(emissions.shape[:2], dtype=torch.bool, device=emissions.device)
+            
+        batch_size, seq_len = tags.shape
+        score = self.start_transitions[tags[:, 0]]
+        
+        for t in range(seq_len):
+            score += emissions[:, t].gather(1, tags[:, t].unsqueeze(1)).squeeze(1) * mask[:, t]
+            
+        for t in range(1, seq_len):
+            prev_tags = tags[:, t-1]
+            curr_tags = tags[:, t]
+            score += self.transitions[curr_tags, prev_tags] * mask[:, t]
+            
+        last_tag_indices = mask.sum(1) - 1
+        last_tags = tags.gather(1, last_tag_indices.long().unsqueeze(1)).squeeze(1)
+        score += self.end_transitions[last_tags]
         return score
 
-    def decode(self, feats):
-        # Viterbi decoding
-        batch_size, seq_len, num_tags = feats.shape
+    def decode(self, emissions, mask=None):
+        if mask is None:
+            mask = torch.ones(emissions.shape[:2], dtype=torch.bool, device=emissions.device)
+            
+        batch_size, seq_len, num_tags = emissions.shape
+        viterbi = self.start_transitions + emissions[:, 0]
         backpointers = []
         
-        init_vvars = torch.full((batch_size, num_tags), -10000.0, device=feats.device)
-        init_vvars[:, 0] = 0.0
-        
-        viterbi_vars = init_vvars
-        for i in range(seq_len):
-            feat = feats[:, i, :]
-            next_tag_var = viterbi_vars.unsqueeze(1) + self.transitions.unsqueeze(0) # (B, T, T)
-            best_tag_ids = torch.argmax(next_tag_var, dim=2)
+        for t in range(1, seq_len):
+            broadcast_viterbi = viterbi.unsqueeze(2) # [batch, num_tags, 1]
+            broadcast_transitions = self.transitions.unsqueeze(0) # [1, num_tags, num_tags]
             
-            # max over transition scores
-            max_vars = torch.max(next_tag_var, dim=2)[0]
-            viterbi_vars = max_vars + feat
+            next_tag_var = broadcast_viterbi + broadcast_transitions
+            best_tag_ids = torch.argmax(next_tag_var, dim=1)
             backpointers.append(best_tag_ids)
             
-        best_path_scores = torch.max(viterbi_vars, dim=1)[0]
-        
-        # Reconstruct paths
-        paths = []
-        for b in range(batch_size):
-            best_tag_id = torch.argmax(viterbi_vars[b]).item()
-            path = [best_tag_id]
-            for best_tag_ids in reversed(backpointers):
-                best_tag_id = best_tag_ids[b, best_tag_id].item()
-                path.append(best_tag_id)
-            path.pop() # remove initial dummy start state index
-            path.reverse()
-            paths.append(path)
+            viterbi_max = next_tag_var.max(dim=1)[0]
+            viterbi = viterbi_max + emissions[:, t]
             
-        return best_path_scores, paths
+            viterbi = viterbi * mask[:, t].unsqueeze(1) + viterbi * (~mask[:, t]).unsqueeze(1)
+            
+        viterbi = viterbi + self.end_transitions
+        best_last_tag = torch.argmax(viterbi, dim=1)
+        best_tags = [best_last_tag]
+        
+        for backpointer in reversed(backpointers):
+            best_last_tag = backpointer.gather(1, best_last_tag.unsqueeze(1)).squeeze(1)
+            best_tags.append(best_last_tag)
+            
+        best_tags = torch.stack(list(reversed(best_tags)), dim=1)
+        
+        # Apply mask to output tags (setting padded tokens to 0)
+        best_tags = best_tags * mask
+        
+        scores = viterbi.max(dim=1)[0]
+        return scores, best_tags
 
 class BiLSTM_CRF(nn.Module):
     def __init__(self, vocab_size=5000, tag_to_ix=None, embedding_dim=128, hidden_dim=128, masked=False):
@@ -433,17 +449,29 @@ class BiLSTM_CRF(nn.Module):
         lstm_feats = self.hidden2tag(lstm_out)
         return lstm_feats
 
-    def forward(self, sentence, tags):
+    def forward(self, sentence, tags, lengths=None):
         feats = self._get_lstm_features(sentence)
-        forward_score = self.crf.forward_alg(feats)
-        gold_score = self.crf.score_sentence(feats, tags)
-        # Loss is negative log-likelihood
+        if lengths is not None:
+            batch_size, seq_len = sentence.shape
+            mask = torch.arange(seq_len, device=sentence.device).unsqueeze(0) < lengths.unsqueeze(1)
+        else:
+            mask = None
+            
+        forward_score = self.crf.forward_alg(feats, mask=mask)
+        gold_score = self.crf.score_sentence(feats, tags, mask=mask)
         return (forward_score - gold_score).mean()
 
-    def predict(self, sentence):
+    def predict(self, sentence, lengths=None):
         feats = self._get_lstm_features(sentence)
-        scores, paths = self.crf.decode(feats)
-        return torch.tensor(paths, device=sentence.device)
+        if lengths is not None:
+            batch_size, seq_len = sentence.shape
+            mask = torch.arange(seq_len, device=sentence.device).unsqueeze(0) < lengths.unsqueeze(1)
+        else:
+            mask = None
+            
+        scores, paths = self.crf.decode(feats, mask=mask)
+        # Ensure it returns a tensor
+        return paths.clone().detach()
 
 
 # --- Native PyTorch Mini-Transformer Baseline (BERT-Mini alternative) ---

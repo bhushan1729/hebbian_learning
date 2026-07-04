@@ -152,13 +152,19 @@ class Trainer:
         correct = 0
         total = 0
         
-        for batch_idx, (data, target) in enumerate(self.train_loader):
+        for batch_idx, batch in enumerate(self.train_loader):
+            if len(batch) == 3:
+                data, target, lengths = batch
+                lengths = lengths.to(self.device)
+            else:
+                data, target = batch
+                lengths = None
+                
             data, target = data.to(self.device), target.to(self.device)
-            
             self.optimizer.zero_grad()
             
             if self.is_ner:
-                loss = self.model(data, target)
+                loss = self.model(data, target, lengths=lengths)
             else:
                 output = self.model(data)
                 loss = self.criterion(output, target)
@@ -172,9 +178,16 @@ class Trainer:
             total_loss += loss.item()
             
             if self.is_ner:
-                predicted = self.model.predict(data)
-                correct += predicted.eq(target.cpu()).sum().item()
-                total += target.numel()
+                predicted = self.model.predict(data, lengths=lengths)
+                if lengths is not None:
+                    batch_size, seq_len = data.shape
+                    mask = torch.arange(seq_len, device=lengths.device).unsqueeze(0) < lengths.unsqueeze(1)
+                    mask_cpu = mask.cpu()
+                    correct += (predicted.eq(target.cpu()) & mask_cpu).sum().item()
+                    total += mask_cpu.sum().item()
+                else:
+                    correct += predicted.eq(target.cpu()).sum().item()
+                    total += target.numel()
             else:
                 _, predicted = output.max(1)
                 total += target.size(0)
@@ -200,14 +213,28 @@ class Trainer:
         correct = 0
         total = 0
         with torch.no_grad():
-            for data, target in self.test_loader:
+            for batch in self.test_loader:
+                if len(batch) == 3:
+                    data, target, lengths = batch
+                    lengths = lengths.to(self.device)
+                else:
+                    data, target = batch
+                    lengths = None
+                    
                 data, target = data.to(self.device), target.to(self.device)
                 
                 if self.is_ner:
-                    loss = self.model(data, target)
-                    predicted = self.model.predict(data)
-                    correct += predicted.eq(target.cpu()).sum().item()
-                    total += target.numel()
+                    loss = self.model(data, target, lengths=lengths)
+                    predicted = self.model.predict(data, lengths=lengths)
+                    if lengths is not None:
+                        batch_size, seq_len = data.shape
+                        mask = torch.arange(seq_len, device=lengths.device).unsqueeze(0) < lengths.unsqueeze(1)
+                        mask_cpu = mask.cpu()
+                        correct += (predicted.eq(target.cpu()) & mask_cpu).sum().item()
+                        total += mask_cpu.sum().item()
+                    else:
+                        correct += predicted.eq(target.cpu()).sum().item()
+                        total += target.numel()
                 else:
                     output = self.model(data)
                     loss = self.criterion(output, target)
