@@ -183,10 +183,10 @@ class Trainer:
                     batch_size, seq_len = data.shape
                     mask = torch.arange(seq_len, device=lengths.device).unsqueeze(0) < lengths.unsqueeze(1)
                     mask_cpu = mask.cpu()
-                    correct += (predicted.eq(target.cpu()) & mask_cpu).sum().item()
+                    correct += (predicted.cpu().eq(target.cpu()) & mask_cpu).sum().item()
                     total += mask_cpu.sum().item()
                 else:
-                    correct += predicted.eq(target.cpu()).sum().item()
+                    correct += predicted.cpu().eq(target.cpu()).sum().item()
                     total += target.numel()
             else:
                 _, predicted = output.max(1)
@@ -230,10 +230,10 @@ class Trainer:
                         batch_size, seq_len = data.shape
                         mask = torch.arange(seq_len, device=lengths.device).unsqueeze(0) < lengths.unsqueeze(1)
                         mask_cpu = mask.cpu()
-                        correct += (predicted.eq(target.cpu()) & mask_cpu).sum().item()
+                        correct += (predicted.cpu().eq(target.cpu()) & mask_cpu).sum().item()
                         total += mask_cpu.sum().item()
                     else:
-                        correct += predicted.eq(target.cpu()).sum().item()
+                        correct += predicted.cpu().eq(target.cpu()).sum().item()
                         total += target.numel()
                 else:
                     output = self.model(data)
