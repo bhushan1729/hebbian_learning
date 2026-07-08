@@ -161,7 +161,32 @@ class TestDADPPipeline(unittest.TestCase):
         
         for arch, dataset in configs:
             print(f"\nVerifying Trainer step for {arch} on {dataset}...")
-            train_loader, test_loader = get_data_loaders(dataset, batch_size=4, data_dir=self.test_dir)
+            orig_train, orig_test = get_data_loaders(dataset, batch_size=4, data_dir=self.test_dir)
+            
+            # Limit unit tests to 8 samples (2 batches) to ensure they run in milliseconds
+            from torch.utils.data import Subset, DataLoader
+            limit_train = min(8, len(orig_train.dataset))
+            limit_test = min(8, len(orig_test.dataset))
+            
+            train_loader = DataLoader(
+                Subset(orig_train.dataset, range(limit_train)),
+                batch_size=4,
+                shuffle=False,
+                collate_fn=orig_train.collate_fn
+            )
+            test_loader = DataLoader(
+                Subset(orig_test.dataset, range(limit_test)),
+                batch_size=4,
+                shuffle=False,
+                collate_fn=orig_test.collate_fn
+            )
+            
+            # Transfer dataloader metadata properties
+            for attr in ['vocab_size', 'tag_to_ix']:
+                if hasattr(orig_train, attr):
+                    setattr(train_loader, attr, getattr(orig_train, attr))
+                if hasattr(orig_test, attr):
+                    setattr(test_loader, attr, getattr(orig_test, attr))
             
             num_classes = 10 if dataset == 'MNIST' else (2 if dataset == 'SST2' else 9)
             input_channels = 1
