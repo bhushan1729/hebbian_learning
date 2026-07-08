@@ -26,11 +26,14 @@ def snip_prune(model, loss_fn, dataloader, device, sparsity=0.9):
     scores = []
     params = []
 
-    for name, p in model.named_parameters():
-        if p.requires_grad and p.grad is not None and "weight" in name:
-            score = torch.abs(p.grad * p)
-            scores.append(score.view(-1))
-            params.append((name, p, score))
+    # Only prune parameters of modules that have a mask attribute
+    for name, module in model.named_modules():
+        if hasattr(module, 'mask'):
+            p = module.weight
+            if p.requires_grad and p.grad is not None:
+                score = torch.abs(p.grad * p)
+                scores.append(score.view(-1))
+                params.append((f"{name}.weight", p, score))
 
     if not scores:
         return {}
@@ -62,11 +65,13 @@ def magnitude_prune(model, sparsity=0.9):
     scores = []
     params = []
 
-    for name, p in model.named_parameters():
-        if p.requires_grad and "weight" in name:
-            score = torch.abs(p.data)
-            scores.append(score.view(-1))
-            params.append((name, p, score))
+    for name, module in model.named_modules():
+        if hasattr(module, 'mask'):
+            p = module.weight
+            if p.requires_grad:
+                score = torch.abs(p.data)
+                scores.append(score.view(-1))
+                params.append((f"{name}.weight", p, score))
 
     if not scores:
         return {}
@@ -151,11 +156,13 @@ def init_random_mask(model, sparsity=0.9):
     scores = []
     params = []
 
-    for name, p in model.named_parameters():
-        if p.requires_grad and "weight" in name:
-            score = torch.rand_like(p.data)
-            scores.append(score.view(-1))
-            params.append((name, p, score))
+    for name, module in model.named_modules():
+        if hasattr(module, 'mask'):
+            p = module.weight
+            if p.requires_grad:
+                score = torch.rand_like(p.data)
+                scores.append(score.view(-1))
+                params.append((f"{name}.weight", p, score))
 
     if not scores:
         return {}
