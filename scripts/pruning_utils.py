@@ -5,12 +5,22 @@ def snip_prune(model, loss_fn, dataloader, device, sparsity=0.9):
     model.train()
 
     # Use ONLY ONE batch
-    x, y = next(iter(dataloader))
+    batch = next(iter(dataloader))
+    if len(batch) == 3:
+        x, y, lengths = batch
+        lengths = lengths.to(device)
+    else:
+        x, y = batch
+        lengths = None
     x, y = x.to(device), y.to(device)
 
     # Forward + backward
-    out = model(x)
-    loss = loss_fn(out, y)
+    is_ner = hasattr(model, 'tag_to_ix') or (hasattr(model, 'module') and hasattr(model.module, 'tag_to_ix'))
+    if is_ner:
+        loss = model(x, y, lengths=lengths)
+    else:
+        out = model(x)
+        loss = loss_fn(out, y)
     loss.backward()
 
     scores = []

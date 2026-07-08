@@ -28,6 +28,8 @@ class Trainer:
         self.is_ner = hasattr(self.model, 'tag_to_ix')
         if not self.is_ner:
             self.criterion = nn.CrossEntropyLoss()
+        else:
+            self.criterion = None
         
         self.prune_interval = prune_interval
         self.prune_threshold = prune_threshold
