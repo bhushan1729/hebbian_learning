@@ -122,3 +122,33 @@ This shows that **DADP organically assigns capacity where it is needed most**, p
 
 ### 📊 Layer Sparsity Plot
 ![MLP MNIST Layer Sparsity Comparison](results/mlp_mnist_experiments/mlp_mnist_layer_sparsity_comparison.png)
+
+---
+
+## 🔍 Observation 6: Emergent Structured Channel/Filter Compression in Convolutional Layers (DADP vs. SNIP)
+
+### 📈 Behavior Description
+When performing post-training Physical Structured Pruning (compressing the model by deleting entire channels or neurons that are 100% dead), we observed a fundamental difference in how **unstructured sparsity** maps to **physical hardware savings** between DADP and SNIP:
+
+1. **DADP (Hebbian) Organically Induces Filter-Level Death**:
+   DADP is a dynamic pruning method driven by local negative feedback. During training, if a convolutional channel/filter becomes redundant, the activation values ($x$) flowing from it or the backpropagated gradients ($dy$) flowing to it decay. Since the Hebbian importance score is defined as the product $|x \cdot dy|$, this decay causes *all* connections going into and coming out of that filter to drop below the threshold simultaneously. 
+   As a result, entire filters are completely cut out from the network. When we run structured pruning, these dead filters are physically deleted, compressing the Conv layers (e.g. `features.24` gets compressed from shape `[512, 256]` to `[511, 256]`, and `features.40` is squeezed from `[512, 512]` to `[457, 503]`).
+
+2. **SNIP (Static) Fails to Delete Convolutional Channels**:
+   SNIP is a static, one-shot pruning method applied at initialization. Because it is calculated once based on initial sensitivity (gradient magnitude), it prunes individual connections relatively uniformly across the spatial channels. It is highly unlikely to prune *every single connection* linked to a specific channel. Since even a single active connection keeps a filter alive, **not a single convolutional filter is physically pruned** under SNIP (all shapes like `features.24` and `features.40` remain fully uncompressed at `512` channels).
+
+This proves that **DADP's dynamic feedback loop organically groups sparsity**, bridging the gap between unstructured pruning algorithms and actual structured hardware speedups in deep convolutional networks.
+
+### 🧪 Supporting Evidence (VGG16 on CIFAR-10)
+
+Comparing the post-training compression shapes between DADP (`thr = 1e-6`, $73.91\%$ sparsity) and SNIP ($70.02\%$ target sparsity):
+
+| Layer Name | Original Conv Shape | DADP Compressed Shape | SNIP Compressed Shape |
+| :--- | :---: | :---: | :---: |
+| **`features.24`** | `[512, 256, 3, 3]` | **`[511, 256, 3, 3]`** *(1 channel dead)* | `[512, 256, 3, 3]` *(0 channels dead)* |
+| **`features.27`** | `[512, 512, 3, 3]` | **`[512, 511, 3, 3]`** *(1 channel dead)* | `[512, 512, 3, 3]` *(0 channels dead)* |
+| **`features.37`** | `[512, 512, 3, 3]` | **`[503, 512, 3, 3]`** *(9 channels dead)* | `[512, 512, 3, 3]` *(0 channels dead)* |
+| **`features.40`** | `[512, 512, 3, 3]` | **`[457, 503, 3, 3]`** *(55 channels dead)* | `[512, 512, 3, 3]` *(0 channels dead)* |
+| **`classifier.0`** | `[512, 512]` | **`[88, 512]`** *(424 neurons dead)* | `[440, 512]` *(72 neurons dead)* |
+| **`classifier.3`** | `[512, 512]` | **`[494, 88]`** *(18 neurons dead)* | `[499, 440]` *(13 neurons dead)* |
+| **`classifier.6`** | `[10, 512]` | **`[10, 494]`** *(18 inputs dead)* | `[10, 499]` *(13 inputs dead)* |
