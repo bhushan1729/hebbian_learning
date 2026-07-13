@@ -181,12 +181,15 @@ def main():
     if args.structured_prune and args.mode != 'baseline':
         from structured_pruning import compress_model_structured
         print("\n--- Performing Post-Training Physical Structured Pruning ---")
-        compressed_model = compress_model_structured(model)
-        
-        # Save physical weights state dict
-        compressed_checkpoint_path = os.path.join(args.output_dir, 'models', f"{base_name}_structured_compressed.pth")
-        torch.save(compressed_model.state_dict(), compressed_checkpoint_path)
-        print(f"Physically compressed model state dict saved to {compressed_checkpoint_path}")
+        try:
+            compressed_model = compress_model_structured(model)
+            # Save physical weights state dict
+            compressed_checkpoint_path = os.path.join(args.output_dir, 'models', f"{base_name}_structured_compressed.pth")
+            torch.save(compressed_model.state_dict(), compressed_checkpoint_path)
+            print(f"Physically compressed model state dict saved to {compressed_checkpoint_path}")
+        except Exception as e:
+            print(f"\n⚠️ Structured pruning skipped or failed: {e}")
+            print("Note: Structured pruning is only supported for sequential architectures (like MLP, CNN, VGG16) and does not support branching/residual connections in ResNet-18.")
 
     print("Experiment run completed successfully.")
 
