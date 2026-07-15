@@ -1,8 +1,10 @@
-# Hebbian-Inspired Structural Pruning: MNIST & CIFAR-10
+# Hebbian-Inspired Structural Pruning: DADP Pipeline
 
-This repository implements an activity-dependent structural sparsification algorithm for neural networks, inspired by Hebbian learning principles ("neurons that fire together, wire together").
+This repository implements an activity-dependent structural sparsification algorithm for neural networks, inspired by Hebbian learning principles ("neurons that fire together, wire together"), alongside multiple state-of-the-art pruning baselines.
 
 The core idea is to track the "importance" of each connection during training and permanently prune connections that contribute little to the learning process.
+
+---
 
 ## 🧠 Pruning Logic: The Hebbian Proxy
 
@@ -16,20 +18,45 @@ Where:
 
 ---
 
-## 🏗️ Supported Architectures
+## 🏗️ Supported Architectures & Datasets
 
-We support three primary architectures, each with a **Baseline** and **Hebbian** (Masked) variant:
+We support five primary architectures, each with a **Baseline** and a **Pruned** (Masked) variant, across diverse datasets:
 
 | Architecture | Description | Target Datasets |
 | :--- | :--- | :--- |
-| **MLP** | 3-Layer Multi-Layer Perceptron (784-512-512-10) | MNIST, CIFAR-10 |
-| **CNN** | 2 Conv Layers + 2 FC Layers | MNIST, CIFAR-10 |
-| **VGG16** | 16-Layer Deep CNN (with Batch Norm & Adaptive Pooling) | CIFAR-10, MNIST |
+| **MLP** | 3-Layer Multi-Layer Perceptron (784-512-512-10) | MNIST |
+| **CNN** | 2 Conv Layers + 2 FC Layers | MNIST |
+| **VGG16** | 16-Layer Deep CNN (with Batch Norm & Adaptive Pooling) | CIFAR-10 |
+| **ResNet-18** | Branching Residual CNN Architecture | CIFAR-10 |
+| **BiLSTM-CRF** | Bidirectional LSTM with Conditional Random Fields | CoNLL-2003 |
+| **Transformer** | Mini-Transformer model for sequence classification | SST-2, IMDB |
 
-### 🚀 VGG16 Highlights
-- **Numerical Stability**: Includes `nn.BatchNorm2d` to handle the depth of 16 layers.
-- **Robustness**: Uses `nn.AdaptiveAvgPool2d((1, 1))` to handle varying input sizes (e.g., 28x28 for MNIST and 32x32 for CIFAR-10) without architectural changes.
-- **Inplace ReLU Fix**: All activations use `inplace=False` to ensure compatibility with backward hooks during pruning.
+---
+
+## ✂️ Supported Pruning Modes
+
+1. **baseline**: Standard dense, unpruned training.
+2. **hebbian**: Progressive Hebbian-inspired pruning (DADP) during training.
+3. **snip**: One-shot Single-path Network Importance Pruning at initialization.
+4. **magnitude**: One-shot standard weight magnitude-based pruning.
+5. **rigl**: Dynamic gradient-based regrowth and pruning framework.
+
+---
+
+## 📂 Project Directory Structure
+
+```
+├── docs/               # Outlines, suggestions, and research notes
+├── notebooks/          # Colab-ready experimental runner notebooks
+├── scripts/            # Core training and pruning engine code
+│   ├── plotting/       # Visualization and figure generator scripts
+│   ├── data_loader.py  # Dataset loading & preprocessing pipelines
+│   ├── engine.py       # Trainer class and evaluation methods
+│   ├── main.py         # Primary training CLI entry point
+│   ├── model.py        # Masked module and network architectures
+│   └── structured_pruning.py # Physical model compression logic
+└── results/            # Saved checkpoints, metrics, and JSON logs (git-ignored)
+```
 
 ---
 
@@ -44,46 +71,54 @@ We support three primary architectures, each with a **Baseline** and **Hebbian**
 > [!NOTE]
 > For Google Colab, use the `--colab` flag to automatically handle pathing to `/content/drive/MyDrive/hebbian_learning/`.
 
-#### 1️⃣ Basic MLP Run (MNIST)
+#### 1️⃣ Basic Hebbian MLP Run (MNIST)
 ```bash
 python scripts/main.py --arch mlp --dataset MNIST --mode hebbian --prune_threshold 0.0001
 ```
 
-#### 2️⃣ Deep VGG16 Run (CIFAR-10)
+#### 2️⃣ Deep ResNet-18 Run (CIFAR-10)
 ```bash
-python scripts/main.py --arch vgg16 --dataset CIFAR10 --mode hebbian --prune_threshold 1e-6 --prune_interval 1000
+python scripts/main.py --arch resnet18 --dataset CIFAR10 --mode hebbian --prune_threshold 5e-6 --prune_interval 500
+```
+
+#### 3️⃣ Sequence Labeling SNIP Run (CoNLL-2003)
+```bash
+python scripts/main.py --arch bilstm_crf --dataset CoNLL2003 --mode snip --sparsity 0.90
 ```
 
 ### 🛠️ CLI Arguments
 | Argument | Default | Description |
 | :--- | :--- | :--- |
-| `--arch` | `mlp` | `mlp`, `cnn`, or `vgg16` |
-| `--dataset`| `MNIST` | `MNIST` or `CIFAR10` |
-| `--mode` | `hebbian` | `baseline` or `hebbian` |
+| `--arch` | `mlp` | `mlp`, `cnn`, `vgg16`, `resnet18`, `bilstm_crf`, `transformer` |
+| `--dataset`| `MNIST` | `MNIST`, `CIFAR10`, `SST2`, `IMDB`, `CoNLL2003` |
+| `--mode` | `hebbian` | `baseline`, `hebbian`, `snip`, `magnitude`, `rigl` |
 | `--epochs` | `10` | Number of training epochs |
-| `--prune_interval` | `500` | Steps between pruning updates |
-| `--prune_threshold`| `1e-4` | Importance cutoff for pruning |
+| `--prune_interval` | `500` | Steps between dynamic pruning updates |
+| `--prune_threshold`| `1e-4` | Importance cutoff for DADP (Hebbian) |
+| `--sparsity` | `0.5` | Target sparsity fraction for SNIP, Magnitude, and RigL |
 | `--colab` | `False` | Enable Google Colab pathing |
 
 ---
 
-## 📈 Key Findings: VGG16 on CIFAR-10
+## 📊 Visualizing Results
 
-In our benchmarks on the CIFAR-10 dataset (20 Epochs):
+The plotting scripts have been grouped into [scripts/plotting/](file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/scripts/plotting/) to quickly generate benchmark curves, layer metrics, and training metrics over epochs. 
 
-- **Baseline Test Acc**: 84.46% (15.2M Connections)
-- **Hebbian (1e-6) Test Acc**: **85.16%** (**4.3M Connections**)
-- **Sparsity**: **71.60%**
-
-> [!IMPORTANT]
-> **Observation**: Pruning over **71%** of the model connections actually **increased** the final test accuracy by **0.70%** compared to the baseline. This suggests the Hebbian pruning algorithm acts as a powerful regularizer, removing redundant weights and improving generalization in deep architectures.
-
----
-
-## 📊 Monitoring & Visualizing
-
-Results (checkpoints and JSON logs) are saved to `/results`. You can visualize comparisons using:
-
+Run the comparison scripts for each architecture:
 ```bash
-python scripts/plot_results.py results/history_baseline_MNIST.json results/history_hebbian_MNIST.json --output_dir plots/
+# VGG16 Benchmarks
+python scripts/plotting/plot_vgg16_comparison.py
+python scripts/plotting/plot_vgg16_layer_metrics.py
+python scripts/plotting/plot_vgg16_ratio_over_epochs.py
+
+# ResNet-18 Benchmarks
+python scripts/plotting/plot_resnet18_comparison.py
+python scripts/plotting/plot_resnet18_layer_metrics.py
+python scripts/plotting/plot_resnet18_ratio_over_epochs.py
+
+# BiLSTM-CRF Benchmarks
+python scripts/plotting/plot_bilstm_comparison.py
+python scripts/plotting/plot_bilstm_layer_metrics.py
+python scripts/plotting/plot_bilstm_ratio_over_epochs.py
 ```
+Outputs are automatically written to their respective experimental results folder (e.g., `results/vgg16_cifar10_experiments/`).

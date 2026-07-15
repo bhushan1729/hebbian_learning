@@ -1,2 +1,10 @@
 logs
 papers
+results/
+data/
+*.zip
+__pycache__/
+local_test_out/
+test_out/
+test_out_pruned/
+.ipynb_checkpoints/
