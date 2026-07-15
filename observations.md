@@ -120,8 +120,16 @@ In contrast, DADP applies a global significance threshold (`thr = 1e-5`), allowi
 
 This shows that **DADP organically assigns capacity where it is needed most**, pruning intermediate representations heavily while preserving output classification paths.
 
-### 📊 Layer Sparsity Plot
+### 📊 Layer Sparsity Plots
+
+#### MLP (MNIST) Layer Sparsity at ~95% Global Sparsity
 ![MLP MNIST Layer Sparsity Comparison](plots/mlp_mnist_layer_sparsity_comparison.png)
+
+#### VGG16 (CIFAR-10) Layer Sparsity at ~90% Global Sparsity
+![VGG16 Layer Sparsity Comparison](plots/vgg16_layer_sparsity_bar_chart.png)
+
+#### ResNet-18 (CIFAR-10) Layer Sparsity at ~99% Global Sparsity
+![ResNet-18 Layer Sparsity Comparison](plots/resnet18_layer_sparsity_bar_chart.png)
 
 ---
 
