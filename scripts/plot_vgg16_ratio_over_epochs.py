@@ -18,8 +18,10 @@ styles = {
     'RigL': {'color': '#9467bd', 'marker': 'd', 'linestyle': ':'}
 }
 
-plt.figure(figsize=(10, 6), dpi=150)
-plt.grid(True, linestyle='--', alpha=0.5)
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True, dpi=150)
+
+for ax in [ax1, ax2]:
+    ax.grid(True, linestyle='--', alpha=0.5)
 
 for method, path in comparison_files.items():
     if not os.path.exists(path):
@@ -31,25 +33,50 @@ for method, path in comparison_files.items():
         
     active_w = data.get('active_connections', [])
     active_n = data.get('active_neurons', [])
+    layer_sparsity_dict = data.get('layer_sparsity', {})
     
-    if not active_w or not active_n:
+    if not active_w or not active_n or not layer_sparsity_dict:
         print(f"Warning: Missing data in {path}. Skipping.")
+        continue
+        
+    # Get total weights and total neurons from epoch_1
+    epoch_keys = sorted(list(layer_sparsity_dict.keys()), key=lambda x: int(x.split('_')[1]))
+    first_epoch_data = layer_sparsity_dict[epoch_keys[0]]
+    
+    total_weights = sum(metrics.get('total_weights', 0) for metrics in first_epoch_data.values())
+    total_neurons = sum(metrics.get('total_neurons', 0) for metrics in first_epoch_data.values())
+    
+    if total_weights == 0 or total_neurons == 0:
+        print(f"Warning: Total weights/neurons is 0 for {path}. Skipping.")
         continue
         
     epochs = np.arange(1, len(active_w) + 1)
     
-    # Compute active weights per active neuron ratio
-    ratios = [w / n for w, n in zip(active_w, active_n)]
+    # Compute ratios
+    weights_ratio = [w / total_weights for w in active_w]
+    neurons_ratio = [n / total_neurons for n in active_n]
     
-    plt.plot(epochs, ratios, 
+    # Plot 1: Active Weights / Total Weights
+    ax1.plot(epochs, weights_ratio, 
              color=styles[method]['color'], marker=styles[method]['marker'], 
-             linestyle=styles[method]['linestyle'], label=method, linewidth=2, markersize=7)
+             linestyle=styles[method]['linestyle'], label=method, linewidth=2, markersize=6)
+             
+    # Plot 2: Active Neurons / Total Neurons
+    ax2.plot(epochs, neurons_ratio, 
+             color=styles[method]['color'], marker=styles[method]['marker'], 
+             linestyle=styles[method]['linestyle'], label=method, linewidth=2, markersize=6)
 
-plt.title('Connection Density Over Epochs\nTotal Active Weights to Total Active Neurons Ratio (~90% Sparsity)', fontsize=12, fontweight='bold', pad=10)
-plt.xlabel('Epoch', fontsize=11)
-plt.ylabel('Active Weights / Active Neurons Ratio', fontsize=11)
+# Labels & Styling
+ax1.set_title('Global Active Capacity Over Epochs\nActive Weights to Total Weights Ratio (~90% Sparsity)', fontsize=11, fontweight='bold')
+ax1.set_ylabel('Active Weights Ratio', fontsize=10)
+ax1.legend(loc='best', fontsize=9, frameon=True)
+
+ax2.set_title('Global Neuron Survival Over Epochs\nActive Neurons to Total Neurons Ratio (~90% Sparsity)', fontsize=11, fontweight='bold')
+ax2.set_ylabel('Active Neurons Ratio', fontsize=10)
+ax2.set_xlabel('Epoch', fontsize=10)
 plt.xticks(np.arange(1, 21))
-plt.legend(loc='best', fontsize=10, frameon=True)
+
+plt.tight_layout()
 
 # Save image
 output_path = 'results/vgg16_cifar10_experiments/vgg16_cifar10_ratio_over_epochs.png'
@@ -57,4 +84,4 @@ os.makedirs(os.path.dirname(output_path), exist_ok=True)
 plt.savefig(output_path, bbox_inches='tight', dpi=300)
 plt.close()
 
-print(f"Ratio over epochs plot successfully saved to {output_path}")
+print(f"Global weights and neurons ratio over epochs plot successfully saved to {output_path}")
