@@ -167,6 +167,13 @@ In residual networks like ResNet-18, branching skip-connections are critical for
 *   **Layer-wise active weights comparisons**: In the ResNet-18 layer-wise plots at **90%** and **99% global sparsity**, the downsample layers stand out as massive peaks of preserved weight capacity.
 *   **Accuracy Resilience**: Even at **99.23% global sparsity** (`thr = 0.0005`), ResNet-18 does not collapse and preserves **$73.67\%$ accuracy** (only 2.39% below the dense baseline of $76.06\%$), largely because these critical skip-connection pathways remain functional.
 
+### 📊 Layer-wise Metric Plots (ResNet-18)
+#### ~90% Global Sparsity Comparison
+![ResNet-18 Layer-wise Capacity (90% Sparsity)](results/resnet18_cifar10_experiments/resnet18_cifar10_layer_wise_comparison.png)
+
+#### ~99% Global Sparsity Comparison
+![ResNet-18 Layer-wise Capacity (99% Sparsity)](results/resnet18_cifar10_experiments/resnet18_cifar10_layer_wise_comparison_99.png)
+
 ---
 
 ## 🔍 Observation 8: Emergent Neuron-Level Collapse at Extreme Sparsities (99% Sparsity)
@@ -183,6 +190,10 @@ Comparing final active counts at Epoch 20 for ~99% global sparsity runs:
 *   **SNIP**: **$112,000$ active weights** scattered over **$3,728$ active neurons** (highly diluted).
 *   **RigL**: **$112,000$ active weights** scattered over **$3,745$ active neurons** (highly diluted).
 
+### 📊 Training Dynamics Plot (ResNet-18)
+#### ~99% Global Sparsity Weights/Neurons Counts Over Epochs
+![ResNet-18 Active Counts Over Epochs (99% Sparsity)](results/resnet18_cifar10_experiments/resnet18_cifar10_ratio_over_epochs_99.png)
+
 ---
 
 ## 🔍 Observation 9: Severe Classification Bottleneck Compression (VGG16 classifier.0)
@@ -197,4 +208,7 @@ In deep convolutional architectures like VGG16 trained on CIFAR-10, we observed 
 *   **Parameter Redundancy**: The transition from convolutional features to the classification head in VGG16 is highly over-parameterized. DADP's progressive Hebbian feedback loops detect that the vast majority of projection pathways in `classifier.0` carry redundant activation-gradient signals ($|a_i \cdot \frac{\partial L}{\partial y_j}| \approx 0$).
 *   **Emergent Pruning**: DADP automatically groups this sparsity, shutting down $82.82\%$ of the neurons in `classifier.0`. This dynamic pruning compresses the layer's output from 512 channels down to just 88 active pathways on disk without degrading classification accuracy.
 
+### 📊 Layer-wise Metric Plot (VGG16)
+#### ~90% Global Sparsity Comparison
+![VGG16 Layer-wise Capacity (~90% Sparsity)](results/vgg16_cifar10_experiments/vgg16_cifar10_layer_wise_comparison.png)
 
