@@ -220,3 +220,21 @@ In deep convolutional architectures like VGG16 trained on CIFAR-10, we observed 
 #### ~90% Global Sparsity Comparison
 ![VGG16 Layer-wise Capacity (~90% Sparsity)](plots/vgg16_cifar10_layer_wise_comparison.png)
 
+---
+
+## 🔍 Observation 10: Organic Layer-wise Sparsity Allocation vs. Rigid Constraints (ResNet-18 at 99% Sparsity)
+
+### 📈 Behavior Description
+We analyzed the layer-by-layer sparsity distribution across all 21 layers of ResNet-18 under extreme global compression targets ($99\%$ target sparsity):
+*   **Standard Methods (Magnitude, RigL)**: Enforce a rigid layer-by-layer constraint where every single layer must be exactly **$99\%$ sparse** (visible as flat blue and purple bars). This is required in standard frameworks to prevent layer disconnection (layer collapse).
+*   **DADP (Hebbian)**: Operates under a single global threshold (`thr = 0.0005`), allowing layer-wise sparsity to emerge organically. DADP automatically varies layer sparsity from **$20\%$ to $100\%$**:
+    1.  **Prioritization of Early Layers**: Early visual feature extractors (`conv1` at **$20\%$ sparsity**, `layer1.0.conv1` at **$28\%$ sparsity**) are kept highly dense to preserve fundamental edge/texture representations.
+    2.  **High-Level Redundancy Compression**: Deep convolutional layers (e.g. `layer3.1.conv1`, `layer4.0.conv1`) are pruned to **$99.8-100\%$ sparsity**.
+    3.  **Automatic Skip-Connection Protection**: Branching downsample shortcuts (e.g. `layer2.0.downsample.0` at **$94\%$ sparsity**) are kept up to **6x denser** than their surrounding blocks to preserve gradient pathways.
+    4.  **Bottleneck Classification Preservation**: The final classification projection (`fc`) is kept denser at **$95\%$ sparsity** to safeguard decision boundary mapping.
+
+### 📊 Layer-wise Sparsity Distribution Plot (ResNet-18)
+#### ~99% Global Sparsity Grouped Bar Chart
+![ResNet-18 Layer-wise Sparsity Comparison (~99% Sparsity)](plots/resnet18_layer_sparsity_bar_chart.png)
+
+
