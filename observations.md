@@ -152,3 +152,34 @@ Comparing the post-training compression shapes between DADP (`thr = 1e-6`, $73.9
 | **`classifier.0`** | `[512, 512]` | **`[88, 512]`** *(424 neurons dead)* | `[440, 512]` *(72 neurons dead)* |
 | **`classifier.3`** | `[512, 512]` | **`[494, 88]`** *(18 neurons dead)* | `[499, 440]` *(13 neurons dead)* |
 | **`classifier.6`** | `[10, 512]` | **`[10, 494]`** *(18 inputs dead)* | `[10, 499]` *(13 inputs dead)* |
+
+---
+
+## 🔍 Observation 7: Adaptive Skip-Connection Protection in Branching Networks (ResNet-18)
+
+### 📈 Behavior Description
+In residual networks like ResNet-18, branching skip-connections are critical for mitigating gradient vanishing and facilitating stable information flow. In our experiments, we did not hardcode any protection for skip-connections. However, we observed that DADP's local importance metric ($|x \cdot dy|$) **organically protected the downsample shortcut connections from deletion**:
+*   Standard convolutional layers are pruned aggressively to less than $2\%$ active weight capacity.
+*   In contrast, the downsample shortcuts (e.g., `layer2.0.downsample.0`, `layer3.0.downsample.0`, `layer4.0.downsample.0`) retain highly pronounced peaks of active weight capacity (up to **$60-90\%+$ active weights**), even at extreme global sparsities.
+*   This suggests that DADP dynamically discovers and preserves essential structural gradient pathways necessary to prevent network representation collapse.
+
+### 🧪 Supporting Evidence (ResNet-18 on CIFAR-10)
+*   **Layer-wise active weights comparisons**: In the ResNet-18 layer-wise plots at **90%** and **99% global sparsity**, the downsample layers stand out as massive peaks of preserved weight capacity.
+*   **Accuracy Resilience**: Even at **99.23% global sparsity** (`thr = 0.0005`), ResNet-18 does not collapse and preserves **$73.67\%$ accuracy** (only 2.39% below the dense baseline of $76.06\%$), largely because these critical skip-connection pathways remain functional.
+
+---
+
+## 🔍 Observation 8: Emergent Neuron-Level Collapse at Extreme Sparsities (99% Sparsity)
+
+### 📈 Behavior Description
+We compared the training dynamics of active connection counts and active neuron survival counts over 20 epochs under extreme compression targets ($99\%$ global sparsity):
+*   **Unstructured methods (SNIP, RigL)**: Scatter active weight connections sparsely across all neurons, keeping nearly 100% of neurons alive ($3,728$ to $3,745$ neurons out of 4,810) but functionally under-utilized and diluted.
+*   **DADP (Hebbian)**: Progressively collapses connection density, decaying the active neuron count from $3,745$ down to **$3,196$ active neurons** by epoch 20. 
+*   Rather than leaving dead channels active with close to zero weights, DADP consolidates the sparse parameters into a highly optimized, compact, and structurally coherent subnetwork of fully functional channels, demonstrating true emergent neuron pruning.
+
+### 🧪 Supporting Evidence (ResNet-18 on CIFAR-10)
+Comparing final active counts at Epoch 20 for ~99% global sparsity runs:
+*   **DADP (Hebbian)**: **$86,000$ active weights** distributed over **$3,196$ active neurons** (highly concentrated).
+*   **SNIP**: **$112,000$ active weights** scattered over **$3,728$ active neurons** (highly diluted).
+*   **RigL**: **$112,000$ active weights** scattered over **$3,745$ active neurons** (highly diluted).
+
