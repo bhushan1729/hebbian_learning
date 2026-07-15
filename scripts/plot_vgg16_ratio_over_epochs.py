@@ -33,48 +33,38 @@ for method, path in comparison_files.items():
         
     active_w = data.get('active_connections', [])
     active_n = data.get('active_neurons', [])
-    layer_sparsity_dict = data.get('layer_sparsity', {})
     
-    if not active_w or not active_n or not layer_sparsity_dict:
+    if not active_w or not active_n:
         print(f"Warning: Missing data in {path}. Skipping.")
-        continue
-        
-    # Get total weights and total neurons from epoch_1
-    epoch_keys = sorted(list(layer_sparsity_dict.keys()), key=lambda x: int(x.split('_')[1]))
-    first_epoch_data = layer_sparsity_dict[epoch_keys[0]]
-    
-    total_weights = sum(metrics.get('total_weights', 0) for metrics in first_epoch_data.values())
-    total_neurons = sum(metrics.get('total_neurons', 0) for metrics in first_epoch_data.values())
-    
-    if total_weights == 0 or total_neurons == 0:
-        print(f"Warning: Total weights/neurons is 0 for {path}. Skipping.")
         continue
         
     epochs = np.arange(1, len(active_w) + 1)
     
-    # Compute ratios
-    weights_ratio = [w / total_weights for w in active_w]
-    neurons_ratio = [n / total_neurons for n in active_n]
-    
-    # Plot 1: Active Weights / Total Weights
-    ax1.plot(epochs, weights_ratio, 
+    # Plot 1: Actual Active Weights Count
+    ax1.plot(epochs, active_w, 
              color=styles[method]['color'], marker=styles[method]['marker'], 
              linestyle=styles[method]['linestyle'], label=method, linewidth=2, markersize=6)
              
-    # Plot 2: Active Neurons / Total Neurons
-    ax2.plot(epochs, neurons_ratio, 
+    # Plot 2: Actual Active Neurons Count
+    ax2.plot(epochs, active_n, 
              color=styles[method]['color'], marker=styles[method]['marker'], 
              linestyle=styles[method]['linestyle'], label=method, linewidth=2, markersize=6)
 
 # Labels & Styling
-ax1.set_title('Global Active Capacity Over Epochs\nActive Weights to Total Weights Ratio (~90% Sparsity)', fontsize=11, fontweight='bold')
-ax1.set_ylabel('Active Weights Ratio', fontsize=10)
+ax1.set_title('Global Active Capacity Over Epochs\nActual Active Weights Count (~90% Sparsity)', fontsize=11, fontweight='bold')
+ax1.set_ylabel('Active Weights Count', fontsize=10)
 ax1.legend(loc='best', fontsize=9, frameon=True)
 
-ax2.set_title('Global Neuron Survival Over Epochs\nActive Neurons to Total Neurons Ratio (~90% Sparsity)', fontsize=11, fontweight='bold')
-ax2.set_ylabel('Active Neurons Ratio', fontsize=10)
+# Format y-axis ticks with commas for readability
+ax1.get_yaxis().set_major_formatter(plt.FuncFormatter(lambda x, loc: "{:,}".format(int(x))))
+
+ax2.set_title('Global Neuron Survival Over Epochs\nActual Active Neurons Count (~90% Sparsity)', fontsize=11, fontweight='bold')
+ax2.set_ylabel('Active Neurons Count', fontsize=10)
 ax2.set_xlabel('Epoch', fontsize=10)
 plt.xticks(np.arange(1, 21))
+
+# Format y-axis ticks with commas for readability
+ax2.get_yaxis().set_major_formatter(plt.FuncFormatter(lambda x, loc: "{:,}".format(int(x))))
 
 plt.tight_layout()
 
@@ -84,4 +74,4 @@ os.makedirs(os.path.dirname(output_path), exist_ok=True)
 plt.savefig(output_path, bbox_inches='tight', dpi=300)
 plt.close()
 
-print(f"Global weights and neurons ratio over epochs plot successfully saved to {output_path}")
+print(f"Global active weights and neurons count over epochs plot successfully saved to {output_path}")
