@@ -18,7 +18,7 @@ This feedback loop acts as a **self-regulating stabilizer**, ensuring the networ
 
 ### 🧪 Supporting Evidence (100-Epoch Limit Test)
 *   **Result Log File**: [`logs/hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.log`](file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/logs/hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.log)
-*   **Result JSON File**: [`results/mlp_mnist_experiments/results/history_hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.json`](file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/results/mlp_mnist_experiments/results/history_hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.json)
+*   **Result JSON File**: [`plots/results/history_hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.json`](file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/plots/results/history_hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.json)
 
 #### Specific Examples from Log:
 *   **Cycle A**:
@@ -102,10 +102,10 @@ Below is the summary of final metrics for the baseline and pruned models trained
 ### 📊 Benchmark Plots
 
 #### Full View (70% - 100% Sparsity)
-![MLP MNIST Sparsity vs. Test Accuracy (Full View)](results/mlp_mnist_experiments/mlp_mnist_sparsity_vs_accuracy_full.png)
+![MLP MNIST Sparsity vs. Test Accuracy (Full View)](plots/mlp_mnist_sparsity_vs_accuracy_full.png)
 
 #### Zoomed View (70% - 98.5% Sparsity)
-![MLP MNIST Sparsity vs. Test Accuracy (Zoomed View)](results/mlp_mnist_experiments/mlp_mnist_sparsity_vs_accuracy_zoom.png)
+![MLP MNIST Sparsity vs. Test Accuracy (Zoomed View)](plots/mlp_mnist_sparsity_vs_accuracy_zoom.png)
 
 ---
 
@@ -121,7 +121,7 @@ In contrast, DADP applies a global significance threshold (`thr = 1e-5`), allowi
 This shows that **DADP organically assigns capacity where it is needed most**, pruning intermediate representations heavily while preserving output classification paths.
 
 ### 📊 Layer Sparsity Plot
-![MLP MNIST Layer Sparsity Comparison](results/mlp_mnist_experiments/mlp_mnist_layer_sparsity_comparison.png)
+![MLP MNIST Layer Sparsity Comparison](plots/mlp_mnist_layer_sparsity_comparison.png)
 
 ---
 
@@ -169,10 +169,10 @@ In residual networks like ResNet-18, branching skip-connections are critical for
 
 ### 📊 Layer-wise Metric Plots (ResNet-18)
 #### ~90% Global Sparsity Comparison
-![ResNet-18 Layer-wise Capacity (90% Sparsity)](results/resnet18_cifar10_experiments/resnet18_cifar10_layer_wise_comparison.png)
+![ResNet-18 Layer-wise Capacity (90% Sparsity)](plots/resnet18_cifar10_layer_wise_comparison.png)
 
 #### ~99% Global Sparsity Comparison
-![ResNet-18 Layer-wise Capacity (99% Sparsity)](results/resnet18_cifar10_experiments/resnet18_cifar10_layer_wise_comparison_99.png)
+![ResNet-18 Layer-wise Capacity (99% Sparsity)](plots/resnet18_cifar10_layer_wise_comparison_99.png)
 
 ---
 
@@ -192,7 +192,7 @@ Comparing final active counts at Epoch 20 for ~99% global sparsity runs:
 
 ### 📊 Training Dynamics Plot (ResNet-18)
 #### ~99% Global Sparsity Weights/Neurons Counts Over Epochs
-![ResNet-18 Active Counts Over Epochs (99% Sparsity)](results/resnet18_cifar10_experiments/resnet18_cifar10_ratio_over_epochs_99.png)
+![ResNet-18 Active Counts Over Epochs (99% Sparsity)](plots/resnet18_cifar10_ratio_over_epochs_99.png)
 
 ---
 
@@ -210,5 +210,5 @@ In deep convolutional architectures like VGG16 trained on CIFAR-10, we observed 
 
 ### 📊 Layer-wise Metric Plot (VGG16)
 #### ~90% Global Sparsity Comparison
-![VGG16 Layer-wise Capacity (~90% Sparsity)](results/vgg16_cifar10_experiments/vgg16_cifar10_layer_wise_comparison.png)
+![VGG16 Layer-wise Capacity (~90% Sparsity)](plots/vgg16_cifar10_layer_wise_comparison.png)
 
