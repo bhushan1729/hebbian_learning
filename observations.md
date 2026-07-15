@@ -237,4 +237,22 @@ We analyzed the layer-by-layer sparsity distribution across all 21 layers of Res
 #### ~99% Global Sparsity Grouped Bar Chart
 ![ResNet-18 Layer-wise Sparsity Comparison (~99% Sparsity)](plots/resnet18_layer_sparsity_bar_chart.png)
 
+---
+
+## 🔍 Observation 11: Organic Layer-wise Sparsity Allocation vs. Rigid Constraints (VGG16 at 90% Sparsity)
+
+### 📈 Behavior Description
+We analyzed the layer-by-layer sparsity distribution across all layers of VGG16 under a $90\%$ global compression target:
+*   **Standard Methods (RigL, Magnitude)**: Force a flat, uniform sparsity profile (visible as flat purple and near-flat blue bars) of approximately **$90\%$** across all layers to prevent layer collapse.
+*   **DADP (Hebbian)**: Uses a single global threshold (`thr = 5e-6`) to let layer-wise sparsity emerge organically. DADP varies layer-wise sparsity dramatically from **$0\%$ to $100\%$**:
+    1.  **Early Feature Extraction Preservation**: The first five convolutional layers (`features.0` to `features.14`) remain virtually **$100\%$ dense ($0\%$ sparsity)**. DADP automatically protects early visual filters because they process raw pixel inputs and have low channel sizes.
+    2.  **Intermediate Transition**: Sparsity ramps up smoothly in the middle conv blocks (`features.17` is **$28\%$ sparse**, `features.20` is **$49\%$ sparse**).
+    3.  **Deep Feature Compression**: The deep, high-channel layers (`features.27` to `features.40`) are pruned to **$98\% - 100\%$ sparsity**, stripping away redundant representation pathways.
+    4.  **Classification Bottleneck Allocation**: The classifier projections `classifier.0` and `classifier.3` are compressed heavily to **$96\%$ sparsity** (removing $96\%$ of weights), while the final classification layer `classifier.6` is preserved at only **$25\%$ sparsity** to retain the final class routing capacity.
+
+### 📊 Layer-wise Sparsity Distribution Plot (VGG16)
+#### ~90% Global Sparsity Grouped Bar Chart
+![VGG16 Layer-wise Sparsity Comparison (~90% Sparsity)](plots/vgg16_layer_sparsity_bar_chart.png)
+
+
 
