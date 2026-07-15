@@ -183,3 +183,18 @@ Comparing final active counts at Epoch 20 for ~99% global sparsity runs:
 *   **SNIP**: **$112,000$ active weights** scattered over **$3,728$ active neurons** (highly diluted).
 *   **RigL**: **$112,000$ active weights** scattered over **$3,745$ active neurons** (highly diluted).
 
+---
+
+## 🔍 Observation 9: Severe Classification Bottleneck Compression (VGG16 classifier.0)
+
+### 📈 Behavior Description
+In deep convolutional architectures like VGG16 trained on CIFAR-10, we observed a massive, localized drop in neuron survival within the first dense classification layer, **`classifier.0`**:
+*   While convolutional features retain almost $100\%$ active neurons, DADP collapses the active neuron count in `classifier.0` down to only **$17.18\%$ active neurons** (88 out of 512).
+*   **Magnitude pruning** also exhibits a major drop down to **$25\%$** active neurons.
+*   In contrast, **RigL** keeps **$100\%$** of these neurons active, and **SNIP** retains **$86\%$** active neurons.
+
+### 🧪 Supporting Evidence & Interpretation
+*   **Parameter Redundancy**: The transition from convolutional features to the classification head in VGG16 is highly over-parameterized. DADP's progressive Hebbian feedback loops detect that the vast majority of projection pathways in `classifier.0` carry redundant activation-gradient signals ($|a_i \cdot \frac{\partial L}{\partial y_j}| \approx 0$).
+*   **Emergent Pruning**: DADP automatically groups this sparsity, shutting down $82.82\%$ of the neurons in `classifier.0`. This dynamic pruning compresses the layer's output from 512 channels down to just 88 active pathways on disk without degrading classification accuracy.
+
+
