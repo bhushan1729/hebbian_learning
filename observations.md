@@ -314,6 +314,27 @@ Because DADP preserves small weights that are functionally active, there is no e
 *   **Active parameter counts scaled down from $10^6$ to $10^4$:**
 ![ResNet-18 Global Weight Distribution](plots/resnet18_global_weight_distribution_custom_scale.png)
 
+---
+
+## 🔍 Observation 15: Cross-Method Weight Distribution Profiles (DADP vs. Magnitude vs. SNIP vs. RigL)
+
+### 📈 Behavior Description
+We performed a model-wide comparison of active weight distributions across all four pruning methods (at $\sim 99\%$ global sparsity for ResNet-18 and $\sim 90\%$ global sparsity for VGG-16):
+
+1.  **Magnitude Pruning (One-shot)**: Exhibits a **pronounced bimodal profile with a deep, empty gap at zero**. Since pruning is determined strictly by parameter magnitude ($|w|$), all weights below the threshold are deleted, forming two symmetric positive/negative hills.
+2.  **DADP (Hebbian)**: Remains a **smooth, continuous Gaussian-like bell curve**. Because DADP prunes based on activation-gradient proxy information flow ($|x \cdot dy|$), it actively retains small weights that carry high gradients, avoiding any gap at zero.
+3.  **SNIP (One-shot)**: Shows a **smooth, bell-curve distribution centered at zero**, similar to DADP. Since SNIP determines its binary mask at initialization (epoch 0) and keeps it static during training, the active connections are free to update and drift through zero over the 20 epochs, smoothing out any initial cutoff boundaries.
+4.  **RigL (Dynamic)**: Shows an **extremely sharp, narrow bimodal spike** with a small central gap. Because RigL dynamically prunes the smallest weights and regrows others periodically based on gradients, it continuously pushes active weights away from zero, though slight drifting occurs between pruning intervals.
+
+### 📊 Global Comparison Plots (All Methods)
+
+#### ResNet-18 (CIFAR-10) Weight Comparison Grid (~99% Global Sparsity)
+![ResNet-18 Cross-Method Comparison](plots/resnet18_all_methods_weight_distributions.png)
+
+#### VGG-16 (CIFAR-10) Weight Comparison Grid (~90% Global Sparsity)
+![VGG-16 Cross-Method Comparison](plots/vgg16_all_methods_weight_distributions.png)
+
+
 
 
 
