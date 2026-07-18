@@ -101,11 +101,19 @@ Below is the summary of final metrics for the baseline and pruned models trained
 
 ### 📊 Benchmark Plots
 
-#### Full View (70% - 100% Sparsity)
+#### MLP (MNIST) Sparsity vs. Test Accuracy
+* **Full View (70% - 100% Sparsity)**:
 ![MLP MNIST Sparsity vs. Test Accuracy (Full View)](plots/mlp_mnist_sparsity_vs_accuracy_full.png)
-
-#### Zoomed View (70% - 98.5% Sparsity)
+* **Zoomed View (70% - 98.5% Sparsity)**:
 ![MLP MNIST Sparsity vs. Test Accuracy (Zoomed View)](plots/mlp_mnist_sparsity_vs_accuracy_zoom.png)
+
+#### VGG-16 (CIFAR-10) Relative Accuracy Loss vs. Pruned Sparsity
+*(Visualizing accuracy gain/loss relative to the dense baseline, mirroring the classical trade-off curves from Song Han's magnitude pruning paper)*
+![VGG-16 Accuracy Change vs. Sparsity](plots/vgg16_accuracy_loss_comparison.png)
+
+#### ResNet-18 (CIFAR-10) Relative Accuracy Loss vs. Pruned Sparsity
+*(Visualizing accuracy gain/loss relative to the dense baseline, showcasing DADP's extreme robustness up to 99.4% sparsity)*
+![ResNet-18 Accuracy Change vs. Sparsity](plots/resnet18_accuracy_loss_comparison.png)
 
 ---
 
