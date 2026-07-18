@@ -293,7 +293,7 @@ Across all evaluated multi-layer feedforward networks (MLP/ANN, VGG-16, and BiLS
 ## 🔍 Observation 14: Weight Value Distribution Profiles (DADP vs. Magnitude Pruning)
 
 ### 📈 Behavior Description
-We compared the global model-wide weight distribution profiles (accumulating all $15.2\text{M}$ parameters of VGG-16) before and after pruning:
+We compared the global model-wide weight distribution profiles (accumulating all parameters of VGG-16 and ResNet-18) before and after pruning:
 *   **Magnitude Pruning**: Yields a **bimodal (two-peaked) weight distribution** (as seen in Figure 7 of Song Han's paper). Because magnitude pruning cuts out a hard window of values around zero ($|w| < \text{threshold}$), it leaves a physical gap (exclusion zone) centered at zero, forcing surviving active weights to cluster into symmetric positive and negative hills.
 *   **DADP (Hebbian) Pruning**: Retains a **single Gaussian-like bell curve centered at zero** (with a significantly reduced height representing pruned connections). 
 
@@ -304,9 +304,16 @@ The absence of a bimodal gap in the Hebbian model is a fundamental property of D
 3.  **Large Weight Deletion**: A connection weight can be large, but if its pathway is inactive (either activation or gradient is zero), its Hebbian score collapses, and DADP will delete it.
 Because DADP preserves small weights that are functionally active, there is no exclusion boundary around zero. The active weights of the Hebbian model cover the entire spectrum, keeping a single bell-curve shape but with a much lower height.
 
-### 📊 Global Weight Distribution Plot (VGG-16)
-#### ~90% Global Sparsity Weight Histograms (Shared X-axis, Scaled Y-axes)
+### 📊 Global Weight Distribution Plots
+
+#### VGG-16 (CIFAR-10) Weight Distribution (Before vs. After DADP)
+*   **Active parameter counts scaled down from $10^5$ to $10^4$:**
 ![VGG-16 Global Weight Distribution](plots/vgg16_global_weight_distribution_custom_scale.png)
+
+#### ResNet-18 (CIFAR-10) Weight Distribution (Before vs. After DADP)
+*   **Active parameter counts scaled down from $10^6$ to $10^4$:**
+![ResNet-18 Global Weight Distribution](plots/resnet18_global_weight_distribution_custom_scale.png)
+
 
 
 
