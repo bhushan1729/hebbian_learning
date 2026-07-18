@@ -254,5 +254,32 @@ We analyzed the layer-by-layer sparsity distribution across all layers of VGG16 
 #### ~90% Global Sparsity Grouped Bar Chart
 ![VGG16 Layer-wise Sparsity Comparison (~90% Sparsity)](plots/vgg16_layer_sparsity_bar_chart.png)
 
+---
+
+## 🔍 Observation 12: Recurrent vs. Projection Capacity Allocations (BiLSTM-CRF)
+
+### 📈 Behavior Description
+In recurrent architectures (BiLSTM-CRF) trained on sequence labeling tasks like CoNLL-2003, we observed that DADP's progressive Hebbian updates automatically differentiate between the processing of incoming spatial features and temporal memory retention:
+*   **Input-to-Hidden Mappings (`fc_ih`)**: DADP allocates significantly more capacity to the forward and backward input projection weights, resulting in a lower sparsity profile (**$75.37\%$** active sparsity for `lstm.forward_cells.0.fc_ih` and **$77.44\%$** for `lstm.backward_cells.0.fc_ih`).
+*   **Hidden-to-Hidden Transitions (`fc_hh`)**: DADP prunes the recurrent state-to-state weights aggressively down to **$92.59\%$** sparsity for the forward pass and **$94.28\%$** for the backward pass.
+*   This suggests that DADP identifies temporal transition matrices (`fc_hh`) as having higher parametric redundancy compared to the input projection matrices (`fc_ih`) which process new token features.
+
+### 🧪 Supporting Evidence
+*   **Layer-wise Metrics**: As logged in [docs/layer_wise_capacity_tables.md](file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/docs/layer_wise_capacity_tables.md#bilstm-crf-dadp-thr5e-5-9275-acc-layer-wise-capacity-table), the active parameter count for the input connections (`fc_ih`) is **$7.4\text{k}$** and **$6.8\text{k}$**, whereas the recurrent transitions (`fc_hh`) are squeezed down to only **$741$** and **$572$** connections, respectively.
+
+---
+
+## 🔍 Observation 13: The Classifier Output Bottleneck Allocation (Cross-Architecture Consistency)
+
+### 📈 Behavior Description
+Across all evaluated multi-layer feedforward networks (MLP/ANN, VGG-16, and BiLSTM-CRF), we observed a striking consistency in how DADP distributes capacity within classification layers:
+1.  **Intermediate Projections Compressed Heavily**: The intermediate projections of classifiers are pruned aggressively. For MLP, the hidden-to-hidden `fc2` is pruned to **$98.47\%$** sparsity. For VGG-16, the fully connected projections `classifier.0` and `classifier.3` are pruned to **$96.08\%$** and **$96.31\%$** sparsity respectively.
+2.  **Output Boundary Preserved**: The final output projection layer mapping features to class logits is kept significantly denser. For MLP, the output `fc3` has only **$80.70\%$** sparsity. For VGG-16, the final logit projection `classifier.6` has only **$25.29\%$** sparsity (keeping $74.71\%$ active connections).
+3.  This indicates that DADP dynamically identifies output decision boundaries as narrow information bottlenecks where parameter loss directly hurts classification performance.
+
+### 🧪 Supporting Evidence
+*   **Comparative Tables**: Detailed parameters for these classifier layers are documented in [docs/layer_wise_capacity_tables.md](file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/docs/layer_wise_capacity_tables.md).
+
+
 
 
