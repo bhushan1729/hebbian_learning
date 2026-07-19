@@ -3,6 +3,8 @@ import os
 import sys
 import torch
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 # Add scripts directory to path for clean imports
@@ -115,6 +117,11 @@ def main():
             module.mask.copy_(dadp_mask[name])
             with torch.no_grad():
                 module.weight.data *= module.mask.data
+            
+            # Register backward hook to zero out gradients of pruned weights
+            def make_hook(mask):
+                return lambda grad: grad * mask
+            module.weight.register_hook(make_hook(module.mask))
                 
     trainer_b = Trainer(
         model=model_b,
@@ -148,6 +155,11 @@ def main():
             module.mask.copy_(dadp_mask[name])
             with torch.no_grad():
                 module.weight.data *= module.mask.data
+                
+            # Register backward hook to zero out gradients of pruned weights
+            def make_hook(mask):
+                return lambda grad: grad * mask
+            module.weight.register_hook(make_hook(module.mask))
                 
     trainer_c = Trainer(
         model=model_c,
