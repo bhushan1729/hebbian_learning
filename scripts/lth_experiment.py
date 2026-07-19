@@ -118,10 +118,8 @@ def main():
             with torch.no_grad():
                 module.weight.data *= module.mask.data
             
-            # Register backward hook to zero out gradients of pruned weights
-            def make_hook(mask):
-                return lambda grad: grad * mask
-            module.weight.register_hook(make_hook(module.mask))
+            # Register backward hook to zero out gradients of pruned weights (late-binding safe)
+            module.weight.register_hook(lambda grad, m=module.mask.clone(): grad * m)
                 
     trainer_b = Trainer(
         model=model_b,
@@ -156,10 +154,8 @@ def main():
             with torch.no_grad():
                 module.weight.data *= module.mask.data
                 
-            # Register backward hook to zero out gradients of pruned weights
-            def make_hook(mask):
-                return lambda grad: grad * mask
-            module.weight.register_hook(make_hook(module.mask))
+            # Register backward hook to zero out gradients of pruned weights (late-binding safe)
+            module.weight.register_hook(lambda grad, m=module.mask.clone(): grad * m)
                 
     trainer_c = Trainer(
         model=model_c,
