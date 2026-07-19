@@ -25,7 +25,7 @@ def set_seed(seed):
 
 def get_architecture(arch, num_classes, device):
     if arch == 'mlp':
-        model = BaselineMLP(input_dim=784, num_classes=num_classes)
+        model = BaselineMLP(input_size=784, num_classes=num_classes)
     elif arch == 'cnn':
         model = BaselineCNN(num_classes=num_classes)
     elif arch == 'vgg16':
