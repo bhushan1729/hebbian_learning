@@ -53,6 +53,7 @@ def main():
     parser.add_argument('--seed_a', type=int, default=42, help='Original seed for Run A and Run B')
     parser.add_argument('--seed_c', type=int, default=2024, help='Random re-initialization seed for Run C')
     parser.add_argument('--colab', action='store_true')
+    parser.add_argument('--data_dir', type=str, default='./data')
     parser.add_argument('--output_dir', type=str, default='./results')
     
     args = parser.parse_args()
@@ -60,13 +61,15 @@ def main():
     # Handle Colab specific paths
     if args.colab:
         drive_path = '/content/drive/MyDrive/hebbian_learning'
+        if args.data_dir == './data':
+            args.data_dir = os.path.join(drive_path, 'data')
         args.output_dir = os.path.join(drive_path, 'results')
         
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
     # 1. Load Data
-    train_loader, test_loader = get_data_loaders(args.dataset, args.batch_size, './data')
+    train_loader, test_loader = get_data_loaders(args.dataset, args.batch_size, args.data_dir)
     num_classes = 10
     
     # =========================================================================
