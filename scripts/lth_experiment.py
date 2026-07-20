@@ -17,6 +17,20 @@ from model import (
 )
 from engine import Trainer
 
+class DualLogger:
+    def __init__(self, filepath, mode="w"):
+        self.terminal = sys.stdout
+        self.log = open(filepath, mode, encoding="utf-8")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+        self.log.flush()
+
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+
 def set_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -76,6 +90,13 @@ def main():
             args.data_dir = os.path.join(drive_path, 'data')
         args.output_dir = os.path.join(drive_path, 'results')
         
+    # Configure logs directory and start dual logging
+    logs_dir = os.path.join(args.output_dir, 'logs')
+    os.makedirs(logs_dir, exist_ok=True)
+    log_mode = "a" if args.resume_from else "w"
+    log_name = f"lth_experiment_{args.arch}_{args.dataset}"
+    sys.stdout = DualLogger(os.path.join(logs_dir, f"{log_name}.log"), mode=log_mode)
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
@@ -269,7 +290,7 @@ def main():
     plt.grid(True, linestyle='--', alpha=0.5)
     plt.legend(loc='lower right', fontsize=10)
     
-    plot_dir = os.path.join(args.output_dir if not args.colab else '/content/drive/MyDrive/hebbian_learning', 'plots')
+    plot_dir = os.path.join(args.output_dir, 'plots')
     os.makedirs(plot_dir, exist_ok=True)
     plot_path = os.path.join(plot_dir, f"lth_validation_{args.arch}_{args.dataset}.png")
     plt.savefig(plot_path, bbox_inches='tight', dpi=300)

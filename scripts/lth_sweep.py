@@ -18,6 +18,20 @@ from model import (
 )
 from engine import Trainer
 
+class DualLogger:
+    def __init__(self, filepath, mode="w"):
+        self.terminal = sys.stdout
+        self.log = open(filepath, mode, encoding="utf-8")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+        self.log.flush()
+
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+
 def set_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -75,6 +89,13 @@ def main():
             args.data_dir = os.path.join(drive_path, 'data')
         args.output_dir = os.path.join(drive_path, 'results/lth_sweep')
         
+    # Configure logs directory and start dual logging
+    logs_dir = os.path.join(args.output_dir, 'logs')
+    os.makedirs(logs_dir, exist_ok=True)
+    log_mode = "a" if args.resume_from else "w"
+    log_name = f"lth_sweep_{args.arch}_{args.dataset}"
+    sys.stdout = DualLogger(os.path.join(logs_dir, f"{log_name}.log"), mode=log_mode)
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     print(f"Sweeping thresholds: {args.thresholds}")
@@ -88,7 +109,8 @@ def main():
     sweep_results = {}
     
     # Load existing sweep results if resuming
-    json_path = os.path.join(args.output_dir, f"lth_sweep_{args.arch}_{args.dataset}.json")
+    json_path = os.path.join(args.output_dir, 'results', f"lth_sweep_{args.arch}_{args.dataset}.json")
+    os.makedirs(os.path.dirname(json_path), exist_ok=True)
     if args.resume_from and os.path.exists(json_path):
         try:
             with open(json_path, 'r') as f:
@@ -337,8 +359,8 @@ def main():
         print(f"| {thr} | {avg_sp:.2f}% | {m_a:.2f} ± {s_a:.2f}% | {m_b:.2f} ± {s_b:.2f}% | {m_c:.2f} ± {s_c:.2f}% |")
     
     # Save raw stats dictionary to output folder
-    json_path = os.path.join(args.output_dir, f"lth_sweep_{args.arch}_{args.dataset}.json")
-    os.makedirs(args.output_dir, exist_ok=True)
+    json_path = os.path.join(args.output_dir, 'results', f"lth_sweep_{args.arch}_{args.dataset}.json")
+    os.makedirs(os.path.dirname(json_path), exist_ok=True)
     with open(json_path, 'w') as f:
         json.dump(sweep_results, f, indent=4)
         
@@ -370,7 +392,8 @@ def main():
     
     plt.legend(loc='lower left', fontsize=10, frameon=True)
     
-    plot_path = os.path.join(args.output_dir, f"lth_sweep_{args.arch}_{args.dataset}.png")
+    plot_path = os.path.join(args.output_dir, 'plots', f"lth_sweep_{args.arch}_{args.dataset}.png")
+    os.makedirs(os.path.dirname(plot_path), exist_ok=True)
     plt.savefig(plot_path, bbox_inches='tight', dpi=300)
     plt.close()
     
