@@ -41,6 +41,16 @@ def get_architecture(arch, num_classes, device):
     model = convert_to_masked_model(model)
     return model.to(device)
 
+def str2bool(v):
+    if isinstance(v, bool):
+       return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 def main():
     parser = argparse.ArgumentParser(description='Lottery Ticket Hypothesis Verification with DADP')
     parser.add_argument('--arch', type=str, default='mlp', choices=['mlp', 'cnn', 'vgg16', 'resnet18'])
@@ -55,6 +65,7 @@ def main():
     parser.add_argument('--colab', action='store_true')
     parser.add_argument('--data_dir', type=str, default='./data')
     parser.add_argument('--output_dir', type=str, default='./results')
+    parser.add_argument('--resume_from', type=str2bool, default=False, help='resume from checkpoint if exists (True or False)')
     
     args = parser.parse_args()
     
@@ -78,31 +89,65 @@ def main():
     print("\n" + "="*50)
     print("RUN A: Training DADP Baseline (Discovering Winning Mask)")
     print("="*50)
-    set_seed(args.seed_a)
-    model_a = get_architecture(args.arch, num_classes, device)
     
-    trainer_a = Trainer(
-        model=model_a,
-        train_loader=train_loader,
-        test_loader=test_loader,
-        device=device,
-        mode='hebbian',
-        lr=args.lr,
-        prune_interval=args.prune_interval,
-        prune_threshold=args.prune_threshold,
-        output_dir=args.output_dir,
-        base_name=f"lth_runA_{args.arch}"
-    )
+    history_a = None
+    final_sparsity = None
+    dadp_mask = None
     
-    history_a = trainer_a.run(args.epochs)
-    final_sparsity = get_model_sparsity(model_a)
-    print(f"--> Run A finished. Global Sparsity: {final_sparsity*100:.2f}%, Test Acc: {history_a['test_acc'][-1]:.2f}%")
+    history_path_a = os.path.join(args.output_dir, 'results', f"history_lth_runA_{args.arch}.json")
+    checkpoint_path_a = os.path.join(args.output_dir, 'models', f"lth_runA_{args.arch}_best.pth")
     
-    # Extract the final DADP mask dictionary
-    dadp_mask = {}
-    for name, module in model_a.named_modules():
-        if hasattr(module, 'mask'):
-            dadp_mask[name] = module.mask.clone()
+    if args.resume_from and os.path.exists(history_path_a) and os.path.exists(checkpoint_path_a):
+        try:
+            import json
+            with open(history_path_a, 'r') as f:
+                history_a = json.load(f)
+            if history_a.get('test_acc') and len(history_a['test_acc']) >= args.epochs:
+                final_sparsity = history_a['sparsity'][-1]
+                print(f"--> Found cached Run A results: Sparsity={final_sparsity*100:.2f}%, Test Acc={history_a['test_acc'][-1]:.2f}%")
+                
+                # Load mask from checkpoint
+                from structured_pruning import load_sparse_checkpoint
+                model_a_temp = get_architecture(args.arch, num_classes, device)
+                state_a = load_sparse_checkpoint(checkpoint_path_a, device)
+                model_a_temp.load_state_dict(state_a['model_state_dict'])
+                
+                dadp_mask = {}
+                for name, module in model_a_temp.named_modules():
+                    if hasattr(module, 'mask'):
+                        dadp_mask[name] = module.mask.clone()
+        except Exception as e:
+            print(f"--> Failed to load cached Run A: {e}. Re-running Run A...")
+            history_a = None
+            final_sparsity = None
+            dadp_mask = None
+
+    if history_a is None or final_sparsity is None or dadp_mask is None:
+        set_seed(args.seed_a)
+        model_a = get_architecture(args.arch, num_classes, device)
+        
+        trainer_a = Trainer(
+            model=model_a,
+            train_loader=train_loader,
+            test_loader=test_loader,
+            device=device,
+            mode='hebbian',
+            lr=args.lr,
+            prune_interval=args.prune_interval,
+            prune_threshold=args.prune_threshold,
+            output_dir=args.output_dir,
+            base_name=f"lth_runA_{args.arch}"
+        )
+        
+        history_a = trainer_a.run(args.epochs)
+        final_sparsity = get_model_sparsity(model_a)
+        print(f"--> Run A finished. Global Sparsity: {final_sparsity*100:.2f}%, Test Acc: {history_a['test_acc'][-1]:.2f}%")
+        
+        # Extract the final DADP mask dictionary
+        dadp_mask = {}
+        for name, module in model_a.named_modules():
+            if hasattr(module, 'mask'):
+                dadp_mask[name] = module.mask.clone()
             
     # =========================================================================
     # RUN B: The Winning Ticket Test
@@ -110,35 +155,51 @@ def main():
     print("\n" + "="*50)
     print("RUN B: Training Winning Ticket (Reset to original W0)")
     print("="*50)
-    # Use exact same seed_a to recreate same W0 initialization
-    set_seed(args.seed_a)
-    model_b = get_architecture(args.arch, num_classes, device)
     
-    # Apply mask and zero out weights
-    for name, module in model_b.named_modules():
-        if name in dadp_mask:
-            module.mask.copy_(dadp_mask[name])
-            with torch.no_grad():
-                module.weight.data *= module.mask.data
-            
-            # Register backward hook to zero out gradients of pruned weights (late-binding safe)
-            module.weight.register_hook(lambda grad, m=module.mask.clone(): grad * m)
+    history_b = None
+    history_path_b = os.path.join(args.output_dir, 'results', f"history_lth_runB_{args.arch}.json")
+    
+    if args.resume_from and os.path.exists(history_path_b):
+        try:
+            import json
+            with open(history_path_b, 'r') as f:
+                history_b = json.load(f)
+            if history_b.get('test_acc') and len(history_b['test_acc']) >= args.epochs:
+                print(f"--> Found cached Run B results: Test Acc={history_b['test_acc'][-1]:.2f}%")
+        except Exception as e:
+            print(f"--> Failed to load cached Run B: {e}. Re-running Run B...")
+            history_b = None
+
+    if history_b is None:
+        # Use exact same seed_a to recreate same W0 initialization
+        set_seed(args.seed_a)
+        model_b = get_architecture(args.arch, num_classes, device)
+        
+        # Apply mask and zero out weights
+        for name, module in model_b.named_modules():
+            if name in dadp_mask:
+                module.mask.copy_(dadp_mask[name])
+                with torch.no_grad():
+                    module.weight.data *= module.mask.data
                 
-    trainer_b = Trainer(
-        model=model_b,
-        train_loader=train_loader,
-        test_loader=test_loader,
-        device=device,
-        mode='hebbian',
-        lr=args.lr,
-        prune_interval=0,  # Disable progressive pruning (fixed mask)
-        prune_threshold=0.0,
-        output_dir=args.output_dir,
-        base_name=f"lth_runB_{args.arch}"
-    )
-    
-    history_b = trainer_b.run(args.epochs)
-    print(f"--> Run B finished. Test Acc: {history_b['test_acc'][-1]:.2f}%")
+                # Register backward hook to zero out gradients of pruned weights (late-binding safe)
+                module.weight.register_hook(lambda grad, m=module.mask.clone(): grad * m)
+                    
+        trainer_b = Trainer(
+            model=model_b,
+            train_loader=train_loader,
+            test_loader=test_loader,
+            device=device,
+            mode='hebbian',
+            lr=args.lr,
+            prune_interval=0,  # Disable progressive pruning (fixed mask)
+            prune_threshold=0.0,
+            output_dir=args.output_dir,
+            base_name=f"lth_runB_{args.arch}"
+        )
+        
+        history_b = trainer_b.run(args.epochs)
+        print(f"--> Run B finished. Test Acc: {history_b['test_acc'][-1]:.2f}%")
     
     # =========================================================================
     # RUN C: The Control (Random Re-initialization)
@@ -146,35 +207,51 @@ def main():
     print("\n" + "="*50)
     print("RUN C: Training Random Re-init (W'0 with new seed)")
     print("="*50)
-    # Use different seed_c to get completely new random initialization
-    set_seed(args.seed_c)
-    model_c = get_architecture(args.arch, num_classes, device)
     
-    # Apply same mask and zero out weights
-    for name, module in model_c.named_modules():
-        if name in dadp_mask:
-            module.mask.copy_(dadp_mask[name])
-            with torch.no_grad():
-                module.weight.data *= module.mask.data
-                
-            # Register backward hook to zero out gradients of pruned weights (late-binding safe)
-            module.weight.register_hook(lambda grad, m=module.mask.clone(): grad * m)
-                
-    trainer_c = Trainer(
-        model=model_c,
-        train_loader=train_loader,
-        test_loader=test_loader,
-        device=device,
-        mode='hebbian',
-        lr=args.lr,
-        prune_interval=0,  # Disable progressive pruning (fixed mask)
-        prune_threshold=0.0,
-        output_dir=args.output_dir,
-        base_name=f"lth_runC_{args.arch}"
-    )
+    history_c = None
+    history_path_c = os.path.join(args.output_dir, 'results', f"history_lth_runC_{args.arch}.json")
     
-    history_c = trainer_c.run(args.epochs)
-    print(f"--> Run C finished. Test Acc: {history_c['test_acc'][-1]:.2f}%")
+    if args.resume_from and os.path.exists(history_path_c):
+        try:
+            import json
+            with open(history_path_c, 'r') as f:
+                history_c = json.load(f)
+            if history_c.get('test_acc') and len(history_c['test_acc']) >= args.epochs:
+                print(f"--> Found cached Run C results: Test Acc={history_c['test_acc'][-1]:.2f}%")
+        except Exception as e:
+            print(f"--> Failed to load cached Run C: {e}. Re-running Run C...")
+            history_c = None
+
+    if history_c is None:
+        # Use different seed_c to get completely new random initialization
+        set_seed(args.seed_c)
+        model_c = get_architecture(args.arch, num_classes, device)
+        
+        # Apply same mask and zero out weights
+        for name, module in model_c.named_modules():
+            if name in dadp_mask:
+                module.mask.copy_(dadp_mask[name])
+                with torch.no_grad():
+                    module.weight.data *= module.mask.data
+                    
+                # Register backward hook to zero out gradients of pruned weights (late-binding safe)
+                module.weight.register_hook(lambda grad, m=module.mask.clone(): grad * m)
+                    
+        trainer_c = Trainer(
+            model=model_c,
+            train_loader=train_loader,
+            test_loader=test_loader,
+            device=device,
+            mode='hebbian',
+            lr=args.lr,
+            prune_interval=0,  # Disable progressive pruning (fixed mask)
+            prune_threshold=0.0,
+            output_dir=args.output_dir,
+            base_name=f"lth_runC_{args.arch}"
+        )
+        
+        history_c = trainer_c.run(args.epochs)
+        print(f"--> Run C finished. Test Acc: {history_c['test_acc'][-1]:.2f}%")
     
     # =========================================================================
     # Plotting & Comparison Table

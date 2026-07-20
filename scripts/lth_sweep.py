@@ -41,6 +41,16 @@ def get_architecture(arch, num_classes, device):
     model = convert_to_masked_model(model)
     return model.to(device)
 
+def str2bool(v):
+    if isinstance(v, bool):
+       return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 def main():
     parser = argparse.ArgumentParser(description='DADP Lottery Ticket Hypothesis Sweep')
     parser.add_argument('--arch', type=str, default='mlp', choices=['mlp', 'cnn', 'vgg16', 'resnet18'])
@@ -55,6 +65,7 @@ def main():
     parser.add_argument('--data_dir', type=str, default='./data')
     parser.add_argument('--output_dir', type=str, default='./results/lth_sweep')
     parser.add_argument('--colab', action='store_true')
+    parser.add_argument('--resume_from', type=str2bool, default=False, help='resume from checkpoint if exists (True or False)')
     
     args = parser.parse_args()
     
@@ -76,112 +87,220 @@ def main():
     # threshold -> { 'sparsities': [], 'acc_a': [], 'acc_b': [], 'acc_c': [] }
     sweep_results = {}
     
+    # Load existing sweep results if resuming
+    json_path = os.path.join(args.output_dir, f"lth_sweep_{args.arch}_{args.dataset}.json")
+    if args.resume_from and os.path.exists(json_path):
+        try:
+            with open(json_path, 'r') as f:
+                loaded = json.load(f)
+            # JSON keys are always strings; convert threshold keys back to float
+            for k, v in loaded.items():
+                sweep_results[float(k)] = v
+            print(f"--> Loaded existing sweep results from {json_path} for resumption.")
+        except Exception as e:
+            print(f"--> Could not load existing sweep results JSON: {e}. Starting fresh.")
+            sweep_results = {}
+    elif not args.resume_from:
+        if os.path.exists(json_path):
+            os.remove(json_path)
+            print(f"Removed old sweep results JSON at {json_path} to start from scratch.")
+
     for thr in args.thresholds:
-        sweep_results[thr] = {
-            'sparsities': [],
-            'acc_a': [],
-            'acc_b': [],
-            'acc_c': []
-        }
+        if thr not in sweep_results:
+            sweep_results[thr] = {
+                'sparsities': [],
+                'acc_a': [],
+                'acc_b': [],
+                'acc_c': []
+            }
         
-        for seed in args.seeds:
+        for idx, seed in enumerate(args.seeds):
             print("\n" + "="*80)
-            print(f"Executing: Threshold = {thr} | Seed = {seed}")
+            print(f"Executing: Threshold = {thr} | Seed = {seed} (Index {idx})")
             print("="*80)
             
+            # Check if this specific index was already completed and saved
+            if (args.resume_from and 
+                idx < len(sweep_results[thr]['acc_a']) and 
+                idx < len(sweep_results[thr]['acc_b']) and 
+                idx < len(sweep_results[thr]['acc_c']) and
+                idx < len(sweep_results[thr]['sparsities'])):
+                print(f"--> Skipping Seed = {seed} (Already fully completed in cached results)")
+                continue
+
             # ----------------------------------------------------
             # RUN A: DADP Baseline
             # ----------------------------------------------------
-            print(f"\n[Run A] DADP baseline training...")
-            set_seed(seed)
-            model_a = get_architecture(args.arch, num_classes, device)
+            acc_a = None
+            sparsity = None
+            dadp_mask = None
             
-            trainer_a = Trainer(
-                model=model_a,
-                train_loader=train_loader,
-                test_loader=test_loader,
-                device=device,
-                mode='hebbian',
-                lr=args.lr,
-                prune_interval=500,
-                prune_threshold=thr,
-                output_dir=args.output_dir,
-                base_name=f"sweep_runA_{args.arch}_thr{thr}_seed{seed}"
-            )
-            history_a = trainer_a.run(args.epochs)
-            sparsity = get_model_sparsity(model_a)
-            acc_a = history_a['test_acc'][-1]
+            history_path_a = os.path.join(args.output_dir, 'results', f"history_sweep_runA_{args.arch}_thr{thr}_seed{seed}.json")
+            checkpoint_path_a = os.path.join(args.output_dir, 'models', f"sweep_runA_{args.arch}_thr{thr}_seed{seed}_best.pth")
             
-            sweep_results[thr]['sparsities'].append(sparsity)
-            sweep_results[thr]['acc_a'].append(acc_a)
+            if args.resume_from and os.path.exists(history_path_a) and os.path.exists(checkpoint_path_a):
+                try:
+                    with open(history_path_a, 'r') as f:
+                        h_a = json.load(f)
+                    if h_a.get('test_acc') and len(h_a['test_acc']) >= args.epochs:
+                        acc_a = h_a['test_acc'][-1]
+                        sparsity = h_a['sparsity'][-1]
+                        print(f"--> Found cached Run A results: Sparsity={sparsity*100:.2f}%, Test Acc={acc_a:.2f}%")
+                        
+                        # Load mask from checkpoint
+                        from structured_pruning import load_sparse_checkpoint
+                        model_a_temp = get_architecture(args.arch, num_classes, device)
+                        state_a = load_sparse_checkpoint(checkpoint_path_a, device)
+                        model_a_temp.load_state_dict(state_a['model_state_dict'])
+                        
+                        dadp_mask = {}
+                        for name, module in model_a_temp.named_modules():
+                            if hasattr(module, 'mask'):
+                                dadp_mask[name] = module.mask.clone()
+                except Exception as e:
+                    print(f"--> Failed to load cached Run A: {e}. Re-running Run A...")
+                    acc_a = None
+                    sparsity = None
+                    dadp_mask = None
+
+            if acc_a is None or sparsity is None or dadp_mask is None:
+                print(f"\n[Run A] DADP baseline training...")
+                set_seed(seed)
+                model_a = get_architecture(args.arch, num_classes, device)
+                
+                trainer_a = Trainer(
+                    model=model_a,
+                    train_loader=train_loader,
+                    test_loader=test_loader,
+                    device=device,
+                    mode='hebbian',
+                    lr=args.lr,
+                    prune_interval=500,
+                    prune_threshold=thr,
+                    output_dir=args.output_dir,
+                    base_name=f"sweep_runA_{args.arch}_thr{thr}_seed{seed}"
+                )
+                history_a = trainer_a.run(args.epochs)
+                sparsity = get_model_sparsity(model_a)
+                acc_a = history_a['test_acc'][-1]
+                
+                # Extract winning mask
+                dadp_mask = {}
+                for name, module in model_a.named_modules():
+                    if hasattr(module, 'mask'):
+                        dadp_mask[name] = module.mask.clone()
             
-            # Extract winning mask
-            dadp_mask = {}
-            for name, module in model_a.named_modules():
-                if hasattr(module, 'mask'):
-                    dadp_mask[name] = module.mask.clone()
+            if len(sweep_results[thr]['sparsities']) > idx:
+                sweep_results[thr]['sparsities'][idx] = sparsity
+                sweep_results[thr]['acc_a'][idx] = acc_a
+            else:
+                sweep_results[thr]['sparsities'].append(sparsity)
+                sweep_results[thr]['acc_a'].append(acc_a)
             
             # ----------------------------------------------------
             # RUN B: Winning Ticket
             # ----------------------------------------------------
-            print(f"\n[Run B] Winning Ticket (reset to same seed)...")
-            set_seed(seed)
-            model_b = get_architecture(args.arch, num_classes, device)
+            acc_b = None
+            history_path_b = os.path.join(args.output_dir, 'results', f"history_sweep_runB_{args.arch}_thr{thr}_seed{seed}.json")
             
-            for name, module in model_b.named_modules():
-                if name in dadp_mask:
-                    module.mask.copy_(dadp_mask[name])
-                    with torch.no_grad():
-                        module.weight.data *= module.mask.data
-                    # Late-binding safe gradient hooks
-                    module.weight.register_hook(lambda grad, m=module.mask.clone(): grad * m)
-                    
-            trainer_b = Trainer(
-                model=model_b,
-                train_loader=train_loader,
-                test_loader=test_loader,
-                device=device,
-                mode='hebbian',
-                lr=args.lr,
-                prune_interval=0,
-                prune_threshold=0.0,
-                output_dir=args.output_dir,
-                base_name=f"sweep_runB_{args.arch}_thr{thr}_seed{seed}"
-            )
-            history_b = trainer_b.run(args.epochs)
-            acc_b = history_b['test_acc'][-1]
-            sweep_results[thr]['acc_b'].append(acc_b)
+            if args.resume_from and os.path.exists(history_path_b):
+                try:
+                    with open(history_path_b, 'r') as f:
+                        h_b = json.load(f)
+                    if h_b.get('test_acc') and len(h_b['test_acc']) >= args.epochs:
+                        acc_b = h_b['test_acc'][-1]
+                        print(f"--> Found cached Run B results: Test Acc={acc_b:.2f}%")
+                except Exception as e:
+                    print(f"--> Failed to load cached Run B: {e}. Re-running Run B...")
+                    acc_b = None
+
+            if acc_b is None:
+                print(f"\n[Run B] Winning Ticket (reset to same seed)...")
+                set_seed(seed)
+                model_b = get_architecture(args.arch, num_classes, device)
+                
+                for name, module in model_b.named_modules():
+                    if name in dadp_mask:
+                        module.mask.copy_(dadp_mask[name])
+                        with torch.no_grad():
+                            module.weight.data *= module.mask.data
+                        # Late-binding safe gradient hooks
+                        module.weight.register_hook(lambda grad, m=module.mask.clone(): grad * m)
+                        
+                trainer_b = Trainer(
+                    model=model_b,
+                    train_loader=train_loader,
+                    test_loader=test_loader,
+                    device=device,
+                    mode='hebbian',
+                    lr=args.lr,
+                    prune_interval=0,
+                    prune_threshold=0.0,
+                    output_dir=args.output_dir,
+                    base_name=f"sweep_runB_{args.arch}_thr{thr}_seed{seed}"
+                )
+                history_b = trainer_b.run(args.epochs)
+                acc_b = history_b['test_acc'][-1]
+                
+            if len(sweep_results[thr]['acc_b']) > idx:
+                sweep_results[thr]['acc_b'][idx] = acc_b
+            else:
+                sweep_results[thr]['acc_b'].append(acc_b)
             
             # ----------------------------------------------------
             # RUN C: Random Re-initialization
             # ----------------------------------------------------
-            print(f"\n[Run C] Random Re-initialization (new seed)...")
-            set_seed(seed + 1000)  # Use offset to guarantee different seed
-            model_c = get_architecture(args.arch, num_classes, device)
+            acc_c = None
+            history_path_c = os.path.join(args.output_dir, 'results', f"history_sweep_runC_{args.arch}_thr{thr}_seed{seed}.json")
             
-            for name, module in model_c.named_modules():
-                if name in dadp_mask:
-                    module.mask.copy_(dadp_mask[name])
-                    with torch.no_grad():
-                        module.weight.data *= module.mask.data
-                    # Late-binding safe gradient hooks
-                    module.weight.register_hook(lambda grad, m=module.mask.clone(): grad * m)
-                    
-            trainer_c = Trainer(
-                model=model_c,
-                train_loader=train_loader,
-                test_loader=test_loader,
-                device=device,
-                mode='hebbian',
-                lr=args.lr,
-                prune_interval=0,
-                prune_threshold=0.0,
-                output_dir=args.output_dir,
-                base_name=f"sweep_runC_{args.arch}_thr{thr}_seed{seed}"
-            )
-            history_c = trainer_c.run(args.epochs)
-            acc_c = history_c['test_acc'][-1]
-            sweep_results[thr]['acc_c'].append(acc_c)
+            if args.resume_from and os.path.exists(history_path_c):
+                try:
+                    with open(history_path_c, 'r') as f:
+                        h_c = json.load(f)
+                    if h_c.get('test_acc') and len(h_c['test_acc']) >= args.epochs:
+                        acc_c = h_c['test_acc'][-1]
+                        print(f"--> Found cached Run C results: Test Acc={acc_c:.2f}%")
+                except Exception as e:
+                    print(f"--> Failed to load cached Run C: {e}. Re-running Run C...")
+                    acc_c = None
+
+            if acc_c is None:
+                print(f"\n[Run C] Random Re-initialization (new seed)...")
+                set_seed(seed + 1000)  # Use offset to guarantee different seed
+                model_c = get_architecture(args.arch, num_classes, device)
+                
+                for name, module in model_c.named_modules():
+                    if name in dadp_mask:
+                        module.mask.copy_(dadp_mask[name])
+                        with torch.no_grad():
+                            module.weight.data *= module.mask.data
+                        # Late-binding safe gradient hooks
+                        module.weight.register_hook(lambda grad, m=module.mask.clone(): grad * m)
+                        
+                trainer_c = Trainer(
+                    model=model_c,
+                    train_loader=train_loader,
+                    test_loader=test_loader,
+                    device=device,
+                    mode='hebbian',
+                    lr=args.lr,
+                    prune_interval=0,
+                    prune_threshold=0.0,
+                    output_dir=args.output_dir,
+                    base_name=f"sweep_runC_{args.arch}_thr{thr}_seed{seed}"
+                )
+                history_c = trainer_c.run(args.epochs)
+                acc_c = history_c['test_acc'][-1]
+                
+            if len(sweep_results[thr]['acc_c']) > idx:
+                sweep_results[thr]['acc_c'][idx] = acc_c
+            else:
+                sweep_results[thr]['acc_c'].append(acc_c)
+            
+            # Save raw stats dictionary dynamically after each seed completes to support real-time checkpoints
+            os.makedirs(args.output_dir, exist_ok=True)
+            with open(json_path, 'w') as f:
+                json.dump(sweep_results, f, indent=4)
             
             print(f"Results for seed {seed}: Sparsity={sparsity*100:.2f}%, Run A={acc_a:.2f}%, Run B={acc_b:.2f}%, Run C={acc_c:.2f}%")
 
