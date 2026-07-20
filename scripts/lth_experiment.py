@@ -77,18 +77,37 @@ def main():
     parser.add_argument('--seed_a', type=int, default=42, help='Original seed for Run A and Run B')
     parser.add_argument('--seed_c', type=int, default=2024, help='Random re-initialization seed for Run C')
     parser.add_argument('--colab', action='store_true')
+    parser.add_argument('--kaggle', action='store_true', help='running in Kaggle environment')
     parser.add_argument('--data_dir', type=str, default='./data')
     parser.add_argument('--output_dir', type=str, default='./results')
     parser.add_argument('--resume_from', type=str2bool, default=False, help='resume from checkpoint if exists (True or False)')
     
     args = parser.parse_args()
-    
-    # Handle Colab specific paths
-    if args.colab:
-        drive_path = '/content/drive/MyDrive/hebbian_learning'
-        if args.data_dir == './data':
-            args.data_dir = os.path.join(drive_path, 'data')
-        args.output_dir = os.path.join(drive_path, 'results')
+
+    # Auto-detect environments
+    is_colab = 'google.colab' in sys.modules or args.colab
+    is_kaggle = 'KAGGLE_KERNEL_RUN_TYPE' in os.environ or args.kaggle
+
+    # Handle environment specific paths
+    if is_colab:
+        try:
+            drive_path = '/content/drive/MyDrive/hebbian_learning'
+            if args.data_dir == './data':
+                args.data_dir = os.path.join(drive_path, 'data')
+            if args.output_dir == './results':
+                args.output_dir = os.path.join(drive_path, 'results')
+            print(f"Colab environment detected. Data: {args.data_dir}, Results: {args.output_dir}")
+        except Exception as e:
+            print(f"Colab pathing issue: {e}. Using local paths.")
+    elif is_kaggle:
+        try:
+            if args.data_dir == './data':
+                args.data_dir = '/tmp/data'  # Use fast local scratch /tmp on Kaggle
+            if args.output_dir == './results':
+                args.output_dir = '/kaggle/working/hebbian_learning/results'
+            print(f"Kaggle environment detected. Data: {args.data_dir}, Results: {args.output_dir}")
+        except Exception as e:
+            print(f"Kaggle pathing issue: {e}. Using local paths.")
         
     # Configure logs directory and start dual logging
     logs_dir = os.path.join(args.output_dir, 'logs')

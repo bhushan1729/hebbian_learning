@@ -42,6 +42,7 @@ def main():
     parser.add_argument('--mode', type=str, default='hebbian', choices=['baseline', 'hebbian', 'snip', 'magnitude', 'rigl'], help='mode: baseline, hebbian (DADP), snip, magnitude, rigl')
     parser.add_argument('--arch', type=str, default='mlp', choices=['mlp', 'cnn', 'vgg16', 'resnet18', 'bilstm_crf', 'transformer'], help='architecture')
     parser.add_argument('--colab', action='store_true', help='running in Google Colab environment')
+    parser.add_argument('--kaggle', action='store_true', help='running in Kaggle environment')
     parser.add_argument('--prune_interval', type=int, default=500, help='interval for pruning')
     parser.add_argument('--prune_threshold', type=float, default=0.0001, help='threshold for pruning')
     parser.add_argument('--sparsity', type=float, default=0.9, help='target sparsity for snip/magnitude/rigl')
@@ -57,17 +58,30 @@ def main():
     
     args = parser.parse_args()
 
-    # Handle Colab specific paths
-    if args.colab:
+    # Auto-detect environments
+    is_colab = 'google.colab' in sys.modules or args.colab
+    is_kaggle = 'KAGGLE_KERNEL_RUN_TYPE' in os.environ or args.kaggle
+
+    # Handle environment specific paths
+    if is_colab:
         try:
             drive_path = '/content/drive/MyDrive/hebbian_learning'
             if args.data_dir == './data':
                 args.data_dir = os.path.join(drive_path, 'data')
             if args.output_dir == './results':
                 args.output_dir = os.path.join(drive_path, 'results')
-            print(f"Colab mode active. Data: {args.data_dir}, Results: {args.output_dir}")
+            print(f"Colab environment detected. Data: {args.data_dir}, Results: {args.output_dir}")
         except Exception as e:
             print(f"Colab pathing issue: {e}. Using local paths.")
+    elif is_kaggle:
+        try:
+            if args.data_dir == './data':
+                args.data_dir = '/tmp/data'  # Use fast local scratch /tmp on Kaggle
+            if args.output_dir == './results':
+                args.output_dir = '/kaggle/working/hebbian_learning/results'
+            print(f"Kaggle environment detected. Data: {args.data_dir}, Results: {args.output_dir}")
+        except Exception as e:
+            print(f"Kaggle pathing issue: {e}. Using local paths.")
 
     # For baseline mode, ensure pruning params are zeroed in metadata
     if args.mode == 'baseline':
