@@ -1,6 +1,27 @@
 import torch
 import torch.nn as nn
 import os
+import tempfile
+import shutil
+
+def safe_torch_save(obj, path):
+    """
+    Saves a PyTorch object safely by first writing to a local temp file,
+    then copying it to the target destination. Bypasses FUSE filesystem (Google Drive)
+    direct seek/write limitations.
+    """
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd, temp_path = tempfile.mkstemp()
+    try:
+        os.close(fd)
+        torch.save(obj, temp_path)
+        shutil.copy2(temp_path, path)
+    finally:
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
 
 def save_sparse_checkpoint(state, path):
     """
@@ -8,7 +29,7 @@ def save_sparse_checkpoint(state, path):
     to minimize file size on disk.
     """
     if 'model_state_dict' not in state:
-        torch.save(state, path)
+        safe_torch_save(state, path)
         return
 
     model_state = state['model_state_dict']
@@ -43,8 +64,7 @@ def save_sparse_checkpoint(state, path):
                 sparse_mask_dict[k] = v
         state['mask_dict'] = sparse_mask_dict
 
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    torch.save(state, path)
+    safe_torch_save(state, path)
     print(f"[Sparse Save] Sparsified checkpoint saved to {path} (Size reduced on disk)")
 
 def load_sparse_checkpoint(path, device):

@@ -179,13 +179,13 @@ def main():
 
     # Run Physical Structured Pruning if requested post-training
     if args.structured_prune and args.mode != 'baseline':
-        from structured_pruning import compress_model_structured
+        from structured_pruning import compress_model_structured, safe_torch_save
         print("\n--- Performing Post-Training Physical Structured Pruning ---")
         try:
             compressed_model = compress_model_structured(model)
             # Save physical weights state dict
             compressed_checkpoint_path = os.path.join(args.output_dir, 'models', f"{base_name}_structured_compressed.pth")
-            torch.save(compressed_model.state_dict(), compressed_checkpoint_path)
+            safe_torch_save(compressed_model.state_dict(), compressed_checkpoint_path)
             print(f"Physically compressed model state dict saved to {compressed_checkpoint_path}")
         except Exception as e:
             print(f"\n⚠️ Structured pruning skipped or failed: {e}")
