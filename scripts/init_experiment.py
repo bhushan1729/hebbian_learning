@@ -62,10 +62,11 @@ def apply_initialization(model, init_type):
         for name, module in model.named_modules():
             if isinstance(module, (nn.Linear, nn.Conv2d)):
                 w = module.weight
+                mode_val = 'fan_out' if isinstance(module, nn.Conv2d) else 'fan_in'
                 if init_type == 'kaiming_normal':
-                    nn.init.kaiming_normal_(w, mode='fan_in', nonlinearity='relu')
+                    nn.init.kaiming_normal_(w, mode=mode_val, nonlinearity='relu')
                 elif init_type == 'kaiming_uniform':
-                    nn.init.kaiming_uniform_(w, mode='fan_in', nonlinearity='relu')
+                    nn.init.kaiming_uniform_(w, mode=mode_val, nonlinearity='relu')
                 elif init_type == 'xavier_normal':
                     nn.init.xavier_normal_(w)
                 elif init_type == 'xavier_uniform':
@@ -230,6 +231,7 @@ def main():
     ax1.set_yticklabels(inits_list, fontsize=10, fontweight='bold')
     ax1.invert_yaxis()  # top-down
     ax1.set_xlabel('Final Test Accuracy (%)', fontsize=11, fontweight='bold')
+    ax1.set_xlim(0, 110)
     ax1.grid(True, linestyle='--', alpha=0.5, axis='x')
     
     # Add values on the bars
@@ -243,6 +245,7 @@ def main():
     ax2.set_yticklabels([])  # Hide y-labels on second plot to avoid redundancy
     ax2.invert_yaxis()
     ax2.set_xlabel('Emergent Sparsity (%)', fontsize=11, fontweight='bold')
+    ax2.set_xlim(0, 110)
     ax2.grid(True, linestyle='--', alpha=0.5, axis='x')
     
     for i, v in enumerate(sparsities):
