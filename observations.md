@@ -434,11 +434,17 @@ This ablation study highlights that **variance-preserving initialization is a ne
 #### ResNet-18 (CIFAR-10) Initialization Layer-wise Comparison (7 Lines)
 ![ResNet-18 Initialization Layer-wise Comparison](plots/resnet18_init_layer_wise_comparison.png)
 
+#### ResNet-18 (CIFAR-10) Test Accuracy Trajectory over Epochs (7 Lines)
+![ResNet-18 Test Accuracy over Epochs](plots/resnet18_init_accuracy_over_epochs.png)
+
 #### VGG-16 (CIFAR-10) Weight Initialization Ablation
 ![VGG-16 Weight Init Ablation](plots/init_ablation_vgg16_CIFAR10.png)
 
 #### VGG-16 (CIFAR-10) Initialization Layer-wise Comparison (6 Lines)
 ![VGG-16 Initialization Layer-wise Comparison](plots/vgg16_init_layer_wise_comparison.png)
+
+#### VGG-16 (CIFAR-10) Test Accuracy Trajectory over Epochs (7 Lines)
+![VGG-16 Test Accuracy over Epochs](plots/vgg16_init_accuracy_over_epochs.png)
 
 
 
