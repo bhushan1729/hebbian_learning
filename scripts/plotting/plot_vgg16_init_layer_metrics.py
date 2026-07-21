@@ -22,9 +22,6 @@ styles = {
     'Normal (sigma=0.1)': {'color': '#9467bd', 'marker': 'x', 'linestyle': '--'}
 }
 
-# Standard variance-scaling methods to group together
-var_scaling_methods = ['Kaiming Normal', 'Kaiming Uniform', 'Xavier Normal', 'Xavier Uniform', 'Orthogonal']
-
 # Custom sorting order key function for VGG-16 layers
 def get_vgg_layer_order(name):
     if name.startswith('features.'):
@@ -84,68 +81,22 @@ for ax in [ax1, ax2]:
 ax1.set_title('Layer-wise Capacity Distribution\nActive Weights to Total Weights Ratio (VGG-16 Initialization Sensitivity Sweep)', fontsize=12, fontweight='bold')
 ax1.set_ylabel('Active Weights Ratio', fontsize=11)
 
+for method, data in layer_data.items():
+    ax1.plot(data['layers'], data['weights_ratio'], 
+             color=styles[method]['color'], marker=styles[method]['marker'], 
+             linestyle=styles[method]['linestyle'], label=method, linewidth=2, markersize=7)
+
+ax1.legend(loc='upper right', frameon=True)
+
 # Plot 2: Active Neurons Ratio
 ax2.set_title('Layer-wise Neuron Retention\nActive Neurons to Total Neurons Ratio (VGG-16 Initialization Sensitivity Sweep)', fontsize=12, fontweight='bold')
 ax2.set_ylabel('Active Neurons Ratio', fontsize=11)
 ax2.set_xlabel('Network Layer Name', fontsize=11)
 
-# Plot individual lines
-layers_list = None
-var_scaling_w_ratios = []
-var_scaling_n_ratios = []
-
 for method, data in layer_data.items():
-    layers_list = data['layers']
-    
-    if method in var_scaling_methods:
-        var_scaling_w_ratios.append(data['weights_ratio'])
-        var_scaling_n_ratios.append(data['neurons_ratio'])
-        
-        # Plot individual variance scaling layers with high transparency
-        ax1.plot(data['layers'], data['weights_ratio'], 
-                 color=styles[method]['color'], marker=styles[method]['marker'], 
-                 linestyle=styles[method]['linestyle'], alpha=0.25, linewidth=1.5, markersize=5,
-                 label=f"{method} (Individual)")
-        ax2.plot(data['layers'], data['neurons_ratio'], 
-                 color=styles[method]['color'], marker=styles[method]['marker'], 
-                 linestyle=styles[method]['linestyle'], alpha=0.25, linewidth=1.5, markersize=5,
-                 label=f"{method} (Individual)")
-    else:
-        # Plot out-of-scale layers fully opaque
-        ax1.plot(data['layers'], data['weights_ratio'], 
-                 color=styles[method]['color'], marker=styles[method]['marker'], 
-                 linestyle=styles[method]['linestyle'], linewidth=2.5, markersize=7,
-                 label=method, alpha=1.0)
-        ax2.plot(data['layers'], data['neurons_ratio'], 
-                 color=styles[method]['color'], marker=styles[method]['marker'], 
-                 linestyle=styles[method]['linestyle'], linewidth=2.5, markersize=7,
-                 label=method, alpha=1.0)
-
-# Compute and plot mean & std dev shading for Variance-Scaling initializations
-if var_scaling_w_ratios:
-    var_scaling_w_ratios = np.array(var_scaling_w_ratios)
-    var_scaling_n_ratios = np.array(var_scaling_n_ratios)
-    
-    mean_w = np.mean(var_scaling_w_ratios, axis=0)
-    std_w = np.std(var_scaling_w_ratios, axis=0)
-    
-    mean_n = np.mean(var_scaling_n_ratios, axis=0)
-    std_n = np.std(var_scaling_n_ratios, axis=0)
-    
-    # Plot Means
-    ax1.plot(layers_list, mean_w, color='#111111', linestyle='-', linewidth=3.0, 
-             label='Variance-Scaling Inits (Mean)', zorder=5)
-    ax2.plot(layers_list, mean_n, color='#111111', linestyle='-', linewidth=3.0, 
-             label='Variance-Scaling Inits (Mean)', zorder=5)
-             
-    # Plot Shaded Std Devs
-    x_indices = np.arange(len(layers_list))
-    ax1.fill_between(layers_list, mean_w - std_w, mean_w + std_w, 
-                     color='#111111', alpha=0.15, label='Variance-Scaling Inits (Std Dev)', zorder=4)
-    ax2.fill_between(layers_list, mean_n - std_n, mean_n + std_n, 
-                     color='#111111', alpha=0.15, label='Variance-Scaling Inits (Std Dev)', zorder=4)
-
-ax1.legend(loc='upper right', frameon=True, fontsize=8, ncol=2)
+    ax2.plot(data['layers'], data['neurons_ratio'], 
+             color=styles[method]['color'], marker=styles[method]['marker'], 
+             linestyle=styles[method]['linestyle'], label=method, linewidth=2, markersize=7)
 
 # Format X-axis tick labels
 plt.xticks(rotation=45, ha='right', fontsize=9)
