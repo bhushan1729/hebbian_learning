@@ -434,6 +434,9 @@ This ablation study highlights that **variance-preserving initialization is a ne
 #### VGG-16 (CIFAR-10) Weight Initialization Ablation
 ![VGG-16 Weight Init Ablation](plots/init_ablation_vgg16_CIFAR10.png)
 
+#### VGG-16 (CIFAR-10) Initialization Layer-wise Comparison (6 Lines)
+![VGG-16 Initialization Layer-wise Comparison](plots/vgg16_init_layer_wise_comparison.png)
+
 
 
 
