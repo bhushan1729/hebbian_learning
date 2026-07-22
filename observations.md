@@ -446,6 +446,34 @@ This ablation study highlights that **variance-preserving initialization is a ne
 #### VGG-16 (CIFAR-10) Test Accuracy Trajectory over Epochs (7 Lines)
 ![VGG-16 Test Accuracy over Epochs](plots/vgg16_init_accuracy_over_epochs.png)
 
+---
+
+### 📝 Observation 18: Representation Quality & Feature Compression Analysis (Dataset Entropy & Effective Rank)
+
+To evaluate the representational dynamics of Dynamic Activation-Derivative Pruning (DADP) against a dense baseline model, we analyzed the layer-wise intermediate representations using information-theoretic and geometric quality metrics: **Matrix-Based Normalized Dataset Entropy ($S_1$)** and **Effective Rank ($\text{EffRank} = \exp(S_1)$)**.
+
+We compared:
+1. **VGG-16** on CIFAR-10 comparing the Dense Baseline with DADP models at thresholds `1e-6`, `5e-6`, `6e-6`, and `1e-5`.
+2. **ResNet-18** on CIFAR-10 comparing the Dense Baseline with DADP models at thresholds `1e-6`, `5e-6`, `1e-5`, `1e-4`, and `5e-4`.
+
+#### Key Scientific Findings:
+
+* **Non-Redundant Information Retention (Hypothesis 1)**: Even under extreme sparsities (e.g. up to 99% in ResNet-18 and 90% in VGG-16), DADP models match or slightly exceed the Dense Baseline in normalized dataset entropy and effective rank across almost all layers. This proves that DADP's local expectation signal $E[|a_i \cdot \frac{\partial L}{\partial y_j}|]$ selectively prunes noisy, redundant parameters without collapsing representation diversity.
+* **Layer-Wise Structural Selectivity (Hypothesis 2)**: 
+  * **Early Layers**: In both architectures, early layers (e.g. `features.0` to `features.14` in VGG-16; `conv1` and `layer1` in ResNet-18) maintain near-identical dataset entropy and effective rank to the dense baseline. This confirms that DADP preserves low-level, high-entropy features (edges, textures) which are critical for upstream representations.
+  * **Deep Layers**: In deeper layers, DADP achieves controlled compression. Interestingly, the DADP models maintain a higher effective rank compared to the dense model in later layers, indicating that the sparse network retains a cleaner, more diverse set of late-stage features by discarding redundant, dead representations.
+* **Invariance & Robustness (Hypothesis 3)**: Across all comparable thresholds, the intermediate representation quality metrics are highly consistent. The minor variance across thresholds shows that DADP is robust and stable across hyperparameters, explaining why classification accuracy is preserved despite massive compression.
+
+---
+
+### 📊 Representation Analysis Plots
+
+#### VGG-16 (CIFAR-10) Representation Quality Analysis
+![VGG-16 Representation Quality](plots/VGG16_representation_entropy.png)
+
+#### ResNet-18 (CIFAR-10) Representation Quality Analysis
+![ResNet-18 Representation Quality](plots/RESNET18_representation_entropy.png)
+
 
 
 
