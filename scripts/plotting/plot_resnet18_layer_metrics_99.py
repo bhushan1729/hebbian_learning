@@ -103,7 +103,6 @@ for method, data in layer_data.items():
              color=styles[method]['color'], marker=styles[method]['marker'], 
              linestyle=styles[method]['linestyle'], label=method, linewidth=2, markersize=7)
 
-ax2.legend(loc='upper right', frameon=True)
 ax2.tick_params(axis='x', labelrotation=90, labelsize=8)
 
 plt.tight_layout()

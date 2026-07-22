@@ -72,14 +72,15 @@ for method, path in comparison_files.items():
         layer_data[method]['neurons_ratio'].append(active_n / total_n)
 
 # Plotting Subplots
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10), sharex=True, dpi=150)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6.5), dpi=150)
 
 for ax in [ax1, ax2]:
     ax.grid(True, linestyle='--', alpha=0.5)
 
 # Plot 1: Active Weights Ratio
-ax1.set_title('Layer-wise Capacity Distribution\nActive Weights to Total Weights Ratio (VGG-16 Initialization Sensitivity Sweep)', fontsize=12, fontweight='bold')
-ax1.set_ylabel('Active Weights Ratio', fontsize=11)
+ax1.set_title('Layer-wise Capacity Distribution\nActive Weights to Total Weights Ratio (VGG-16 Initialization Sweep)', fontsize=11, fontweight='bold')
+ax1.set_ylabel('Active Weights Ratio', fontsize=10)
+ax1.set_xlabel('Network Layer Name', fontsize=10)
 
 for method, data in layer_data.items():
     ax1.plot(data['layers'], data['weights_ratio'], 
@@ -87,19 +88,21 @@ for method, data in layer_data.items():
              linestyle=styles[method]['linestyle'], label=method, linewidth=2, markersize=7)
 
 ax1.legend(loc='upper right', frameon=True)
+ax1.tick_params(axis='x', labelrotation=90, labelsize=8)
 
 # Plot 2: Active Neurons Ratio
-ax2.set_title('Layer-wise Neuron Retention\nActive Neurons to Total Neurons Ratio (VGG-16 Initialization Sensitivity Sweep)', fontsize=12, fontweight='bold')
-ax2.set_ylabel('Active Neurons Ratio', fontsize=11)
-ax2.set_xlabel('Network Layer Name', fontsize=11)
+ax2.set_title('Layer-wise Neuron Retention\nActive Neurons to Total Neurons Ratio (VGG-16 Initialization Sweep)', fontsize=11, fontweight='bold')
+ax2.set_ylabel('Active Neurons Ratio', fontsize=10)
+ax2.set_xlabel('Network Layer Name', fontsize=10)
 
 for method, data in layer_data.items():
     ax2.plot(data['layers'], data['neurons_ratio'], 
              color=styles[method]['color'], marker=styles[method]['marker'], 
              linestyle=styles[method]['linestyle'], label=method, linewidth=2, markersize=7)
 
-# Format X-axis tick labels
-plt.xticks(rotation=45, ha='right', fontsize=9)
+# Remove legend from ax2 to prevent overlap/clutter as ax1 already displays it
+ax2.tick_params(axis='x', labelrotation=90, labelsize=8)
+
 plt.tight_layout()
 
 # Save image to both results subfolder and primary plots directory
