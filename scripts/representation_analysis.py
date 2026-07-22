@@ -172,7 +172,7 @@ def plot_dadp_vs_baseline(
     output_dir: str
 ):
     """
-    Generates comparison curves of Baseline vs DADP across layer depth percentage.
+    Generates comparison curves of Baseline vs DADP across actual layer names.
     """
     # Intersect keys to guarantee matching layer order
     layer_names = [k for k in baseline_metrics.keys() if k in dadp_metrics]
@@ -182,8 +182,9 @@ def plot_dadp_vs_baseline(
         print("⚠️ Warning: No matching layer names found between Baseline and DADP models.")
         return
 
-    denom = (num_layers - 1) if num_layers > 1 else 1
-    depth_percentages = [i / denom * 100 for i in range(num_layers)]
+    # Clean layer names for the x-axis ticks
+    clean_layer_names = ["_".join(k.split("_")[2:]) for k in layer_names]
+    x_coords = np.arange(num_layers)
     
     base_norm_entropy = [baseline_metrics[l]["norm_entropy"] for l in layer_names]
     dadp_norm_entropy = [dadp_metrics[l]["norm_entropy"] for l in layer_names]
@@ -191,23 +192,28 @@ def plot_dadp_vs_baseline(
     base_eff_rank = [baseline_metrics[l]["eff_rank"] for l in layer_names]
     dadp_eff_rank = [dadp_metrics[l]["eff_rank"] for l in layer_names]
     
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5), dpi=150)
+    # Increase height slightly to accommodate the layer labels
+    fig, axes = plt.subplots(1, 2, figsize=(15, 6.5), dpi=150)
     
     # Subplot 1: Normalized Dataset Entropy
-    axes[0].plot(depth_percentages, base_norm_entropy, 'o-', label='Baseline (Dense)', color='#1f77b4', linewidth=2.2, markersize=6)
-    axes[0].plot(depth_percentages, dadp_norm_entropy, 's--', label='DADP (Sparse)', color='#ff7f0e', linewidth=2.2, markersize=6)
+    axes[0].plot(x_coords, base_norm_entropy, 'o-', label='Baseline (Dense)', color='#1f77b4', linewidth=2.2, markersize=6)
+    axes[0].plot(x_coords, dadp_norm_entropy, 's--', label='DADP (Sparse)', color='#ff7f0e', linewidth=2.2, markersize=6)
     axes[0].set_title(f"{model_name}: Normalized Dataset Entropy ($S_1$) Across Layers", fontsize=11, fontweight='bold')
-    axes[0].set_xlabel("Layer Depth Percentage (%)", fontsize=10)
+    axes[0].set_xlabel("Layer Name", fontsize=10)
     axes[0].set_ylabel("Normalized Entropy $S_1(Z) / \\log_2(N)$", fontsize=10)
+    axes[0].set_xticks(x_coords)
+    axes[0].set_xticklabels(clean_layer_names, rotation=90, fontsize=8, ha='center')
     axes[0].grid(True, linestyle='--', alpha=0.5)
     axes[0].legend(fontsize=9, frameon=True)
     
     # Subplot 2: Effective Rank
-    axes[1].plot(depth_percentages, base_eff_rank, 'o-', label='Baseline (Dense)', color='#1f77b4', linewidth=2.2, markersize=6)
-    axes[1].plot(depth_percentages, dadp_eff_rank, 's--', label='DADP (Sparse)', color='#ff7f0e', linewidth=2.2, markersize=6)
+    axes[1].plot(x_coords, base_eff_rank, 'o-', label='Baseline (Dense)', color='#1f77b4', linewidth=2.2, markersize=6)
+    axes[1].plot(x_coords, dadp_eff_rank, 's--', label='DADP (Sparse)', color='#ff7f0e', linewidth=2.2, markersize=6)
     axes[1].set_title(f"{model_name}: Effective Rank ($\\exp(S_1)$) Across Layers", fontsize=11, fontweight='bold')
-    axes[1].set_xlabel("Layer Depth Percentage (%)", fontsize=10)
+    axes[1].set_xlabel("Layer Name", fontsize=10)
     axes[1].set_ylabel("Effective Rank", fontsize=10)
+    axes[1].set_xticks(x_coords)
+    axes[1].set_xticklabels(clean_layer_names, rotation=90, fontsize=8, ha='center')
     axes[1].grid(True, linestyle='--', alpha=0.5)
     axes[1].legend(fontsize=9, frameon=True)
     
