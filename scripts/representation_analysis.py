@@ -26,11 +26,6 @@ def compute_matrix_entropy(Z: torch.Tensor, eps: float = 1e-12) -> Tuple[float, 
     """
     Computes Matrix-Based Entropy (S_1) and Effective Rank for activation matrix Z.
     Z shape: (N, D) where N is number of samples/tokens, D is feature dimension.
-    
-    Returns:
-        entropy (float): Shannon matrix entropy S_1(Z) in bits.
-        norm_entropy (float): Entropy normalized in range [0, 1].
-        eff_rank (float): Effective Rank exp(S_1 in nats).
     """
     N, D = Z.shape
     if N < 2:
@@ -69,13 +64,13 @@ def compute_matrix_entropy(Z: torch.Tensor, eps: float = 1e-12) -> Tuple[float, 
 
 
 # =====================================================================
-# 2. ACTIVATION FEATURE HOOK EXTRACTOR
+# 2. ACTIVATION FEATURE HOOK EXTRACTOR (FIXED KEY NAMES & RESHAPING)
 # =====================================================================
 
 class LayerFeatureExtractor:
     """
-    Attaches forward hooks to specified layers (Conv2d, Linear)
-    and stores feature representations during pass.
+    Attaches forward hooks to specified layers (Conv2d, Linear, MaskedConv2d, MaskedLinear)
+    and stores feature representations using uniform layer identifiers.
     """
     def __init__(self, model: nn.Module, target_layer_types=(nn.Conv2d, nn.Linear)):
         self.model = model
@@ -84,20 +79,19 @@ class LayerFeatureExtractor:
         
         layer_idx = 0
         for name, module in model.named_modules():
-            # Since MaskedLinear/MaskedConv2d inherit from nn.Linear/nn.Conv2d,
-            # isinstance(module, target_layer_types) matches them correctly.
             if isinstance(module, target_layer_types):
-                hook_name = f"Layer_{layer_idx:02d}_{module.__class__.__name__}_{name}"
+                # FIX: Use clean, class-agnostic layer keys so Baseline and DADP keys match perfectly
+                hook_name = f"Layer_{layer_idx:02d}_{name}"
                 hook = module.register_forward_hook(self._get_hook(hook_name))
                 self.hooks.append(hook)
                 layer_idx += 1
 
     def _get_hook(self, layer_name: str):
         def hook(module, input, output):
-            # Flatten spatial dimensions for Conv outputs via Global Average Pooling
-            if output.dim() == 4: # (N, C, H, W)
-                pooled = F.adaptive_avg_pool2d(output, (1, 1)).squeeze(-1).squeeze(-1)
-                self.features[layer_name] = pooled.detach()
+            # Flatten feature dimensions for Conv outputs: (N, C, H, W) -> (N, C * H * W)
+            if output.dim() == 4:
+                flattened = output.detach().flatten(start_dim=1)
+                self.features[layer_name] = flattened
             elif output.dim() == 2: # (N, D) for Linear layers
                 self.features[layer_name] = output.detach()
         return hook
@@ -127,8 +121,6 @@ def evaluate_layerwise_entropy(
     model.to(device)
     
     extractor = LayerFeatureExtractor(model)
-    
-    # Store aggregated metrics per layer
     layer_metrics = {}
     
     with torch.no_grad():
@@ -139,7 +131,6 @@ def evaluate_layerwise_entropy(
             images = images.to(device)
             _ = model(images) # Forward pass triggers hooks
             
-            # Compute entropy for each captured layer feature
             for layer_name, feature_tensor in extractor.features.items():
                 entropy, norm_entropy, eff_rank = compute_matrix_entropy(feature_tensor)
                 
@@ -158,20 +149,20 @@ def evaluate_layerwise_entropy(
             
     extractor.remove_hooks()
     
-    # Average across batches
+    # Average metrics across batches
     summary = {}
     for layer_name, metrics in layer_metrics.items():
         summary[layer_name] = {
-            "entropy": np.mean(metrics["entropy"]),
-            "norm_entropy": np.mean(metrics["norm_entropy"]),
-            "eff_rank": np.mean(metrics["eff_rank"])
+            "entropy": float(np.mean(metrics["entropy"])),
+            "norm_entropy": float(np.mean(metrics["norm_entropy"])),
+            "eff_rank": float(np.mean(metrics["eff_rank"]))
         }
         
     return summary
 
 
 # =====================================================================
-# 4. PLOTTING & VISUALIZATION FUNCTION
+# 4. PLOTTING & VISUALIZATION FUNCTION (FIXED KEY MATCHING)
 # =====================================================================
 
 def plot_dadp_vs_baseline(
@@ -183,9 +174,16 @@ def plot_dadp_vs_baseline(
     """
     Generates comparison curves of Baseline vs DADP across layer depth percentage.
     """
-    layer_names = list(baseline_metrics.keys())
+    # Intersect keys to guarantee matching layer order
+    layer_names = [k for k in baseline_metrics.keys() if k in dadp_metrics]
     num_layers = len(layer_names)
-    depth_percentages = [i / (num_layers - 1) * 100 for i in range(num_layers)]
+    
+    if num_layers == 0:
+        print("⚠️ Warning: No matching layer names found between Baseline and DADP models.")
+        return
+
+    denom = (num_layers - 1) if num_layers > 1 else 1
+    depth_percentages = [i / denom * 100 for i in range(num_layers)]
     
     base_norm_entropy = [baseline_metrics[l]["norm_entropy"] for l in layer_names]
     dadp_norm_entropy = [dadp_metrics[l]["norm_entropy"] for l in layer_names]
