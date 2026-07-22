@@ -80,7 +80,6 @@ class LayerFeatureExtractor:
         layer_idx = 0
         for name, module in model.named_modules():
             if isinstance(module, target_layer_types):
-                # FIX: Use clean, class-agnostic layer keys so Baseline and DADP keys match perfectly
                 hook_name = f"Layer_{layer_idx:02d}_{name}"
                 hook = module.register_forward_hook(self._get_hook(hook_name))
                 self.hooks.append(hook)
@@ -167,19 +166,22 @@ def evaluate_layerwise_entropy(
 
 def plot_dadp_vs_baseline(
     baseline_metrics: Dict[str, Dict[str, float]], 
-    dadp_metrics: Dict[str, Dict[str, float]],
+    dadp_metrics_dict: Dict[str, Dict[str, Dict[str, float]]],
     model_name: str,
     output_dir: str
 ):
     """
-    Generates comparison curves of Baseline vs DADP across actual layer names.
+    Generates comparison curves of Baseline vs multiple DADP models across actual layer names.
     """
     # Intersect keys to guarantee matching layer order
-    layer_names = [k for k in baseline_metrics.keys() if k in dadp_metrics]
+    layer_names = list(baseline_metrics.keys())
+    for label, metrics in dadp_metrics_dict.items():
+        layer_names = [k for k in layer_names if k in metrics]
+        
     num_layers = len(layer_names)
     
     if num_layers == 0:
-        print("⚠️ Warning: No matching layer names found between Baseline and DADP models.")
+        print("⚠️ Warning: No matching layer names found between all compared models.")
         return
 
     # Clean layer names for the x-axis ticks
@@ -187,35 +189,48 @@ def plot_dadp_vs_baseline(
     x_coords = np.arange(num_layers)
     
     base_norm_entropy = [baseline_metrics[l]["norm_entropy"] for l in layer_names]
-    dadp_norm_entropy = [dadp_metrics[l]["norm_entropy"] for l in layer_names]
-    
     base_eff_rank = [baseline_metrics[l]["eff_rank"] for l in layer_names]
-    dadp_eff_rank = [dadp_metrics[l]["eff_rank"] for l in layer_names]
     
     # Increase height slightly to accommodate the layer labels
-    fig, axes = plt.subplots(1, 2, figsize=(15, 6.5), dpi=150)
+    fig, axes = plt.subplots(1, 2, figsize=(15, 7.0), dpi=150)
+    
+    # Define color palette & marker styles
+    colors = ['#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#bcbd22', '#17becf']
+    markers = ['s', 'v', '^', 'D', 'o', '*', 'x', '+']
     
     # Subplot 1: Normalized Dataset Entropy
-    axes[0].plot(x_coords, base_norm_entropy, 'o-', label='Baseline (Dense)', color='#1f77b4', linewidth=2.2, markersize=6)
-    axes[0].plot(x_coords, dadp_norm_entropy, 's--', label='DADP (Sparse)', color='#ff7f0e', linewidth=2.2, markersize=6)
+    axes[0].plot(x_coords, base_norm_entropy, 'o-', label='Baseline (Dense)', color='#1f77b4', linewidth=2.5, markersize=7)
+    
+    for idx, (label, metrics) in enumerate(dadp_metrics_dict.items()):
+        color = colors[idx % len(colors)]
+        marker = markers[idx % len(markers)]
+        norm_entropy = [metrics[l]["norm_entropy"] for l in layer_names]
+        axes[0].plot(x_coords, norm_entropy, f'{marker}--', label=label, color=color, linewidth=2.0, markersize=5)
+        
     axes[0].set_title(f"{model_name}: Normalized Dataset Entropy ($S_1$) Across Layers", fontsize=11, fontweight='bold')
     axes[0].set_xlabel("Layer Name", fontsize=10)
     axes[0].set_ylabel("Normalized Entropy $S_1(Z) / \\log_2(N)$", fontsize=10)
     axes[0].set_xticks(x_coords)
     axes[0].set_xticklabels(clean_layer_names, rotation=90, fontsize=8, ha='center')
     axes[0].grid(True, linestyle='--', alpha=0.5)
-    axes[0].legend(fontsize=9, frameon=True)
+    axes[0].legend(fontsize=9, frameon=True, loc='best')
     
     # Subplot 2: Effective Rank
-    axes[1].plot(x_coords, base_eff_rank, 'o-', label='Baseline (Dense)', color='#1f77b4', linewidth=2.2, markersize=6)
-    axes[1].plot(x_coords, dadp_eff_rank, 's--', label='DADP (Sparse)', color='#ff7f0e', linewidth=2.2, markersize=6)
+    axes[1].plot(x_coords, base_eff_rank, 'o-', label='Baseline (Dense)', color='#1f77b4', linewidth=2.5, markersize=7)
+    
+    for idx, (label, metrics) in enumerate(dadp_metrics_dict.items()):
+        color = colors[idx % len(colors)]
+        marker = markers[idx % len(markers)]
+        eff_rank = [metrics[l]["eff_rank"] for l in layer_names]
+        axes[1].plot(x_coords, eff_rank, f'{marker}--', label=label, color=color, linewidth=2.0, markersize=5)
+        
     axes[1].set_title(f"{model_name}: Effective Rank ($\\exp(S_1)$) Across Layers", fontsize=11, fontweight='bold')
     axes[1].set_xlabel("Layer Name", fontsize=10)
     axes[1].set_ylabel("Effective Rank", fontsize=10)
     axes[1].set_xticks(x_coords)
     axes[1].set_xticklabels(clean_layer_names, rotation=90, fontsize=8, ha='center')
     axes[1].grid(True, linestyle='--', alpha=0.5)
-    axes[1].legend(fontsize=9, frameon=True)
+    axes[1].legend(fontsize=9, frameon=True, loc='best')
     
     plt.tight_layout()
     plot_path = os.path.join(output_dir, 'plots', f"{model_name}_representation_entropy.png")
@@ -234,7 +249,8 @@ def main():
     parser.add_argument('--arch', type=str, default='vgg16', choices=['vgg16', 'resnet18'])
     parser.add_argument('--dataset', type=str, default='CIFAR10', choices=['MNIST', 'CIFAR10'])
     parser.add_argument('--baseline_model', type=str, required=True, help='Path to baseline dense model checkpoint (.pth)')
-    parser.add_argument('--dadp_model', type=str, required=True, help='Path to pruned DADP model checkpoint (.pth)')
+    parser.add_argument('--dadp_models', type=str, nargs='+', required=True, help='Paths to pruned DADP model checkpoints (.pth)')
+    parser.add_argument('--labels', type=str, nargs='+', help='Custom labels for each DADP model')
     parser.add_argument('--data_dir', type=str, default='./data')
     parser.add_argument('--output_dir', type=str, default='./results/representation_analysis')
     parser.add_argument('--batch_size', type=int, default=128)
@@ -265,33 +281,56 @@ def main():
     state_base = load_sparse_checkpoint(args.baseline_model, device)
     baseline_model.load_state_dict(state_base['model_state_dict'])
     
-    # 3. Instantiate and load DADP model
-    print(f"Loading DADP model ({args.arch})...")
-    if args.arch == 'vgg16':
-        dadp_model = BaselineVGG16(input_channels=3 if args.dataset == 'CIFAR10' else 1, num_classes=10)
-    else:
-        dadp_model = get_resnet18(num_classes=10, masked=False)
+    # 3. Setup labels for DADP models
+    if not args.labels:
+        args.labels = []
+        for path in args.dadp_models:
+            filename = os.path.basename(path)
+            if 'thr' in filename:
+                parts = filename.split('thr')
+                thr_val = parts[1].split('_')[0]
+                args.labels.append(f"DADP (thr={thr_val})")
+            elif 'sp' in filename:
+                parts = filename.split('sp')
+                sp_val = parts[1].split('_')[0].replace('.pth', '')
+                args.labels.append(f"DADP (sp={sp_val})")
+            else:
+                args.labels.append(filename.replace('.pth', ''))
+                
+    # Validate labels length matches models length
+    if len(args.labels) != len(args.dadp_models):
+        print("⚠️ Warning: Length of labels does not match models. Auto-generating labels.")
+        args.labels = [f"DADP {i}" for i in range(len(args.dadp_models))]
         
-    dadp_model = convert_to_masked_model(dadp_model)
-    state_dadp = load_sparse_checkpoint(args.dadp_model, device)
-    dadp_model.load_state_dict(state_dadp['model_state_dict'])
-    
-    # 4. Run Evaluation
+    # 4. Evaluate Baseline model
     print("Evaluating Baseline layer-wise entropy metrics...")
     baseline_metrics = evaluate_layerwise_entropy(baseline_model, test_loader, device, args.num_batches)
     
-    print("Evaluating DADP layer-wise entropy metrics...")
-    dadp_metrics = evaluate_layerwise_entropy(dadp_model, test_loader, device, args.num_batches)
+    # 5. Evaluate all DADP models
+    dadp_metrics_dict = {}
+    for path, label in zip(args.dadp_models, args.labels):
+        print(f"Evaluating DADP model '{label}' from path: {path}...")
+        if args.arch == 'vgg16':
+            dadp_model = BaselineVGG16(input_channels=3 if args.dataset == 'CIFAR10' else 1, num_classes=10)
+        else:
+            dadp_model = get_resnet18(num_classes=10, masked=False)
+            
+        dadp_model = convert_to_masked_model(dadp_model)
+        state_dadp = load_sparse_checkpoint(path, device)
+        dadp_model.load_state_dict(state_dadp['model_state_dict'])
+        
+        metrics = evaluate_layerwise_entropy(dadp_model, test_loader, device, args.num_batches)
+        dadp_metrics_dict[label] = metrics
     
-    # 5. Generate plots and save JSON statistics
-    plot_dadp_vs_baseline(baseline_metrics, dadp_metrics, args.arch.upper(), args.output_dir)
+    # 6. Generate plots and save JSON statistics
+    plot_dadp_vs_baseline(baseline_metrics, dadp_metrics_dict, args.arch.upper(), args.output_dir)
     
     json_path = os.path.join(args.output_dir, 'results', f"{args.arch}_representation_entropy.json")
     os.makedirs(os.path.dirname(json_path), exist_ok=True)
     with open(json_path, 'w') as f:
         json.dump({
             "baseline": baseline_metrics,
-            "dadp": dadp_metrics
+            "dadp_sweeps": dadp_metrics_dict
         }, f, indent=4)
     print(f"✅ Representation metrics JSON saved to: {json_path}")
     print("Done!")
