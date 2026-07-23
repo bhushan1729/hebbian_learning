@@ -40,9 +40,10 @@ for method, path in comparison_files.items():
         continue
         
     epochs = np.arange(1, len(test_accs) + 1)
+    lw = 2.0 if styles[method]['linestyle'] == '-' else 1.3
     plt.plot(epochs, test_accs, 
              color=styles[method]['color'], marker=styles[method]['marker'], 
-             linestyle=styles[method]['linestyle'], label=method, linewidth=2, markersize=5)
+             linestyle=styles[method]['linestyle'], label=method, linewidth=lw, markersize=5)
 
 plt.title('VGG-16 Initialization Sensitivity Study\nTest Accuracy vs. Epochs on CIFAR-10', fontsize=12, fontweight='bold', pad=12)
 plt.xlabel('Epoch', fontsize=11, fontweight='bold')

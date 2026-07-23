@@ -43,14 +43,15 @@ for method, path in comparison_files.items():
     epochs = np.arange(1, len(active_w) + 1)
     
     # Plot 1: Actual Active Weights Count
+    lw = 2.0 if styles[method]['linestyle'] == '-' else 1.3
     ax1.plot(epochs, active_w, 
              color=styles[method]['color'], marker=styles[method]['marker'], 
-             linestyle=styles[method]['linestyle'], label=method, linewidth=2, markersize=6)
+             linestyle=styles[method]['linestyle'], label=method, linewidth=lw, markersize=6)
              
     # Plot 2: Actual Active Neurons Count
     ax2.plot(epochs, active_n, 
              color=styles[method]['color'], marker=styles[method]['marker'], 
-             linestyle=styles[method]['linestyle'], label=method, linewidth=2, markersize=6)
+             linestyle=styles[method]['linestyle'], label=method, linewidth=lw, markersize=6)
 
 # Labels & Styling
 ax1.set_title('Global Active Capacity Over Epochs\nActual Active Weights Count (~99% Sparsity)', fontsize=11, fontweight='bold')
