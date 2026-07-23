@@ -79,6 +79,11 @@ class Trainer:
         self.hooks = []
         self._setup_hooks()
 
+        if self.mode == 'rigl':
+            for module in self.model.modules():
+                if hasattr(module, 'disable_mask_backward'):
+                    module.disable_mask_backward = True
+
     def _setup_hooks(self):
         def hook_fn(module, input, output):
             module._current_input = input[0].detach()
@@ -199,7 +204,14 @@ class Trainer:
             if self.mode == 'hebbian' and self.prune_interval > 0 and self.step % self.prune_interval == 0:
                 self.prune()
             elif self.mode == 'rigl' and self.rigl_interval > 0 and self.step % self.rigl_interval == 0:
-                self.mask_dict = rigl_step(self.model, self.mask_dict, self.rigl_prune_fraction)
+                import math
+                total_steps = len(self.train_loader) * getattr(self, 'num_epochs', 20)
+                t_end = int(0.8 * total_steps)
+                if self.step < t_end:
+                    current_fraction = (self.rigl_prune_fraction / 2.0) * (1.0 + math.cos(math.pi * self.step / t_end))
+                else:
+                    current_fraction = 0.0
+                self.mask_dict = rigl_step(self.model, self.mask_dict, current_fraction)
             
             if batch_idx % 100 == 0:
                 print(".", end="", flush=True)
@@ -270,6 +282,7 @@ class Trainer:
             print(f"\n[Pruning] {' | '.join(summary)}")
 
     def run(self, num_epochs):
+        self.num_epochs = num_epochs
         if self.epoch == 0:
             if self.mode == 'snip':
                 self.mask_dict = snip_prune(self.model, self.criterion, self.train_loader, self.device, self.sparsity)

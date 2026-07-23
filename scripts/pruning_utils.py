@@ -3,6 +3,7 @@ import torch
 def snip_prune(model, loss_fn, dataloader, device, sparsity=0.9):
     model.to(device)
     model.train()
+    model.zero_grad()  # Ensure no residual gradients exist
 
     # Use ONLY ONE batch
     batch = next(iter(dataloader))
@@ -14,7 +15,7 @@ def snip_prune(model, loss_fn, dataloader, device, sparsity=0.9):
         lengths = None
     x, y = x.to(device), y.to(device)
 
-    # Forward + backward
+    # Forward + backward pass
     is_ner = hasattr(model, 'tag_to_ix') or (hasattr(model, 'module') and hasattr(model.module, 'tag_to_ix'))
     if is_ner:
         loss = model(x, y, lengths=lengths)
@@ -26,31 +27,37 @@ def snip_prune(model, loss_fn, dataloader, device, sparsity=0.9):
     scores = []
     params = []
 
-    # Only prune parameters of modules that have a mask attribute
+    # Calculate connection sensitivity
     for name, module in model.named_modules():
         if hasattr(module, 'mask'):
             p = module.weight
             if p.requires_grad and p.grad is not None:
-                score = torch.abs(p.grad * p)
+                score = torch.abs(p.grad * p.data)
                 scores.append(score.view(-1))
                 params.append((f"{name}.weight", p, score))
+
+    model.zero_grad()  # Clear gradients so training starts clean
 
     if not scores:
         return {}
 
     all_scores = torch.cat(scores)
+    # L1 normalization across all parameter scores
+    all_scores_norm = all_scores / (torch.sum(all_scores) + 1e-8)
+    
     k = int((1 - sparsity) * all_scores.numel())
     if k == 0:
-        threshold = all_scores.max() + 1 # Prune everything
+        threshold = all_scores_norm.max() + 1.0
     else:
-        threshold = torch.topk(all_scores, k)[0][-1]
+        threshold = torch.topk(all_scores_norm, k)[0][-1]
 
     mask_dict = {}
     total_elements = 0
     active_elements = 0
     
     for name, p, score in params:
-        mask = (score >= threshold).float()
+        score_norm = score / (torch.sum(all_scores) + 1e-8)
+        mask = (score_norm >= threshold).float()
         mask_dict[name] = mask.to(p.device)
         p.data.mul_(mask)
         
@@ -79,7 +86,7 @@ def magnitude_prune(model, sparsity=0.9):
     all_scores = torch.cat(scores)
     k = int((1 - sparsity) * all_scores.numel())
     if k == 0:
-        threshold = all_scores.max() + 1
+        threshold = all_scores.max() + 1.0
     else:
         threshold = torch.topk(all_scores, k)[0][-1]
 
@@ -135,6 +142,8 @@ def rigl_step(model, mask_dict, prune_fraction=0.2):
         # Apply updated mask
         p.data.mul_(mask)
 
+    # Immediately synchronize parameters and module buffers
+    apply_mask(model, mask_dict)
     return mask_dict
 
 def apply_mask(model, mask_dict):
@@ -170,7 +179,7 @@ def init_random_mask(model, sparsity=0.9):
     all_scores = torch.cat(scores)
     k = int((1 - sparsity) * all_scores.numel())
     if k == 0:
-        threshold = all_scores.max() + 1
+        threshold = all_scores.max() + 1.0
     else:
         threshold = torch.topk(all_scores, k)[0][-1]
 

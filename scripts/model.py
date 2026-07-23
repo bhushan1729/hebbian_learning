@@ -2,13 +2,30 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class MaskedOp(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, weight, mask, disable_mask_backward=False):
+        ctx.save_for_backward(mask)
+        ctx.disable_mask_backward = disable_mask_backward
+        return weight * mask
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        mask, = ctx.saved_tensors
+        if ctx.disable_mask_backward:
+            return grad_output, None, None
+        else:
+            return grad_output * mask, None, None
+
 class MaskedLinear(nn.Linear):
     def __init__(self, in_features, out_features, bias=True):
         super(MaskedLinear, self).__init__(in_features, out_features, bias)
         self.register_buffer('mask', torch.ones(out_features, in_features))
+        self.disable_mask_backward = False
 
     def forward(self, input):
-        masked_weight = self.weight * self.mask
+        disable_mask_backward = getattr(self, 'disable_mask_backward', False)
+        masked_weight = MaskedOp.apply(self.weight, self.mask, disable_mask_backward)
         return F.linear(input, masked_weight, self.bias)
 
     def prune(self, importance, threshold):
@@ -23,9 +40,11 @@ class MaskedConv2d(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True):
         super(MaskedConv2d, self).__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
         self.register_buffer('mask', torch.ones(self.weight.shape))
+        self.disable_mask_backward = False
 
     def forward(self, input):
-        masked_weight = self.weight * self.mask
+        disable_mask_backward = getattr(self, 'disable_mask_backward', False)
+        masked_weight = MaskedOp.apply(self.weight, self.mask, disable_mask_backward)
         return F.conv2d(input, masked_weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
 
     def prune(self, importance, threshold):
