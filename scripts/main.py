@@ -142,9 +142,9 @@ def main():
     elif args.arch == 'transformer':
         model = get_mini_transformer(vocab_size=5000, num_classes=num_classes, masked=False)
     elif args.arch == 'bert':
-        from transformers import AutoModelForSequenceClassification
+        from transformers import BertForSequenceClassification
         print("Loading pre-trained BERT-Mini for sequence classification...")
-        model = AutoModelForSequenceClassification.from_pretrained("prajjwal1/bert-mini", num_labels=num_classes)
+        model = BertForSequenceClassification.from_pretrained("prajjwal1/bert-mini", num_labels=num_classes)
 
     # Convert to masked version if running Hebbian (DADP) or other pruning methods
     # This enables unified metric extraction and masking.
