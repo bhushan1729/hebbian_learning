@@ -174,6 +174,8 @@ class Trainer:
                 loss = self.model(data, target, lengths=lengths)
             else:
                 output = self.model(data)
+                if hasattr(output, 'logits'):
+                    output = output.logits
                 loss = self.criterion(output, target)
                 
             loss.backward()
@@ -251,6 +253,8 @@ class Trainer:
                         total += target.numel()
                 else:
                     output = self.model(data)
+                    if hasattr(output, 'logits'):
+                        output = output.logits
                     loss = self.criterion(output, target)
                     _, predicted = output.max(1)
                     total += target.size(0)

@@ -40,7 +40,7 @@ def main():
     parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train')
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
     parser.add_argument('--mode', type=str, default='hebbian', choices=['baseline', 'hebbian', 'snip', 'magnitude', 'rigl'], help='mode: baseline, hebbian (DADP), snip, magnitude, rigl')
-    parser.add_argument('--arch', type=str, default='mlp', choices=['mlp', 'cnn', 'vgg16', 'resnet18', 'bilstm_crf', 'transformer'], help='architecture')
+    parser.add_argument('--arch', type=str, default='mlp', choices=['mlp', 'cnn', 'vgg16', 'resnet18', 'bilstm_crf', 'transformer', 'bert'], help='architecture')
     parser.add_argument('--colab', action='store_true', help='running in Google Colab environment')
     parser.add_argument('--kaggle', action='store_true', help='running in Kaggle environment')
     parser.add_argument('--prune_interval', type=int, default=500, help='interval for pruning')
@@ -141,6 +141,10 @@ def main():
         model = BiLSTM_CRF(vocab_size=vocab_size, tag_to_ix=tag_to_ix, embedding_dim=128, hidden_dim=128, masked=(args.mode != 'baseline'))
     elif args.arch == 'transformer':
         model = get_mini_transformer(vocab_size=5000, num_classes=num_classes, masked=False)
+    elif args.arch == 'bert':
+        from transformers import AutoModelForSequenceClassification
+        print("Loading pre-trained BERT-Mini for sequence classification...")
+        model = AutoModelForSequenceClassification.from_pretrained("prajjwal1/bert-mini", num_labels=num_classes)
 
     # Convert to masked version if running Hebbian (DADP) or other pruning methods
     # This enables unified metric extraction and masking.
