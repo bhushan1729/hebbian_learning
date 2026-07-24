@@ -184,10 +184,13 @@ def get_data_loaders(dataset_name='MNIST', batch_size=64, data_dir='./data', tra
     elif dataset_name in ['SST2', 'IMDB']:
         try:
             from datasets import load_dataset
-            from transformers import AutoTokenizer
+            from transformers import AutoTokenizer, BertTokenizer
             
             print(f"Attempting to load {dataset_name} from HuggingFace...")
-            tokenizer = AutoTokenizer.from_pretrained(transformer_model, use_fast=False)
+            if "bert-mini" in transformer_model or "bert-tiny" in transformer_model:
+                tokenizer = BertTokenizer.from_pretrained(transformer_model, use_fast=False)
+            else:
+                tokenizer = AutoTokenizer.from_pretrained(transformer_model, use_fast=False)
             
             if dataset_name == 'SST2':
                 hf_dataset = load_dataset("stanfordnlp/sst2", cache_dir=data_dir)
