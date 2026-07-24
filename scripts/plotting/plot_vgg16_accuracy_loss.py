@@ -87,6 +87,28 @@ for mode in ['hebbian', 'magnitude', 'snip', 'rigl']:
     plt.plot(x, y, color=colors[mode], marker=markers[mode], markersize=7, 
              linewidth=2.2, label=labels[mode])
 
+# 3. Add text labels on all points dynamically avoiding overlaps
+points_by_sp = {}
+for mode in ['hebbian', 'magnitude', 'snip', 'rigl']:
+    for sp, acc_change in accuracy_changes[mode]:
+        sp_round = round(sp, 1)
+        if sp_round not in points_by_sp:
+            points_by_sp[sp_round] = []
+        points_by_sp[sp_round].append((acc_change, mode, sp))
+
+for sp_round, pts in points_by_sp.items():
+    pts = sorted(pts, key=lambda val: val[0], reverse=True)
+    for rank, (acc_change, mode, sp_orig) in enumerate(pts):
+        if acc_change < -15.0:
+            continue
+        offset_y = 0.3 if rank % 2 == 0 else -0.7
+        if mode == 'hebbian':
+            offset_y = 0.4
+        elif mode == 'rigl':
+            offset_y = -0.8
+        plt.text(sp_orig, acc_change + offset_y, f'{acc_change:+.1f}%', 
+                 color=colors[mode], fontsize=8, ha='center', fontweight='bold')
+
 # Styling to match Song Han's paper layout
 plt.title('VGG-16 CIFAR-10 Accuracy Trade-off vs. Sparsity\nRelative Accuracy Change from Dense Baseline', fontsize=12, fontweight='bold', pad=12)
 plt.xlabel('Parameters Pruned Away (%)', fontsize=11)
