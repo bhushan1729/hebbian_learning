@@ -131,7 +131,7 @@ def collate_fn_ner(batch):
         padded_labels[i, :length] = lbl
     return padded_sentences, padded_labels, lengths
 
-def get_data_loaders(dataset_name='MNIST', batch_size=64, data_dir='./data'):
+def get_data_loaders(dataset_name='MNIST', batch_size=64, data_dir='./data', transformer_model='prajjwal1/bert-mini'):
     """
     Get data loaders for MNIST, CIFAR10, SST2, IMDB, and CoNLL2003.
     """
@@ -187,7 +187,7 @@ def get_data_loaders(dataset_name='MNIST', batch_size=64, data_dir='./data'):
             from transformers import AutoTokenizer
             
             print(f"Attempting to load {dataset_name} from HuggingFace...")
-            tokenizer = AutoTokenizer.from_pretrained("prajjwal1/bert-mini", use_fast=False)
+            tokenizer = AutoTokenizer.from_pretrained(transformer_model, use_fast=False)
             
             if dataset_name == 'SST2':
                 hf_dataset = load_dataset("glue", "sst2", cache_dir=data_dir)

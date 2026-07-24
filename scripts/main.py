@@ -56,6 +56,7 @@ def main():
     parser.add_argument('--output_dir', type=str, default='./results', help='Directory for results')
     parser.add_argument('--exp_name', type=str, default=None, help='Custom name for this experiment run')
     parser.add_argument('--structured_prune', action='store_true', help='apply physical structured pruning to compress the network after training')
+    parser.add_argument('--transformer_model', type=str, default='prajjwal1/bert-mini', help='pre-trained HuggingFace transformer model to use')
     parser.add_argument('--early_stopping', type=str2bool, default=False, help='enable early stopping (True or False)')
     parser.add_argument('--resume_from', type=str2bool, default=False, help='resume from checkpoint if exists (True or False)')
     
@@ -111,7 +112,7 @@ def main():
     print(f"Using device: {device}")
 
     # Load Data
-    train_loader, test_loader = get_data_loaders(args.dataset, args.batch_size, args.data_dir)
+    train_loader, test_loader = get_data_loaders(args.dataset, args.batch_size, args.data_dir, args.transformer_model)
 
     # Determine dimensions based on dataset
     num_classes = 10
@@ -145,9 +146,12 @@ def main():
     elif args.arch == 'transformer':
         model = get_mini_transformer(vocab_size=5000, num_classes=num_classes, masked=False)
     elif args.arch == 'bert':
-        from transformers import BertForSequenceClassification
-        print("Loading pre-trained BERT-Mini for sequence classification...")
-        model = BertForSequenceClassification.from_pretrained("prajjwal1/bert-mini", num_labels=num_classes)
+        from transformers import AutoModelForSequenceClassification, BertForSequenceClassification
+        print(f"Loading pre-trained model '{args.transformer_model}' for sequence classification...")
+        if "bert-mini" in args.transformer_model or "bert-tiny" in args.transformer_model:
+            model = BertForSequenceClassification.from_pretrained(args.transformer_model, num_labels=num_classes)
+        else:
+            model = AutoModelForSequenceClassification.from_pretrained(args.transformer_model, num_labels=num_classes)
 
     # Convert to masked version if running Hebbian (DADP) or other pruning methods
     # This enables unified metric extraction and masking.

@@ -11,6 +11,7 @@ def main():
     parser.add_argument("--data_dir", type=str, default="./data", help="Data directory")
     parser.add_argument("--output_dir", type=str, default="./results/bert_experiments", help="Output directory")
     parser.add_argument("--dry_run", action="store_true", help="Print commands without running them")
+    parser.add_argument("--transformer_model", type=str, default="prajjwal1/bert-mini", help="Pre-trained HuggingFace transformer model to use")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -58,7 +59,8 @@ def main():
             "--batch_size", str(args.batch_size),
             "--data_dir", args.data_dir,
             "--output_dir", args.output_dir,
-            "--mode", mode
+            "--mode", mode,
+            "--transformer_model", args.transformer_model
         ] + run_params
 
         # Print visual status
