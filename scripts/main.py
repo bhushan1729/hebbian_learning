@@ -34,6 +34,9 @@ class DualLogger:
         self.terminal.flush()
         self.log.flush()
 
+    def isatty(self):
+        return hasattr(self.terminal, 'isatty') and self.terminal.isatty()
+
 def main():
     parser = argparse.ArgumentParser(description='DADP & Baseline Pruning Benchmarking Pipeline')
     parser.add_argument('--batch_size', type=int, default=64, help='input batch size for training')
