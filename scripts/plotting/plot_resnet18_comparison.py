@@ -65,28 +65,27 @@ for mode in ['hebbian', 'magnitude', 'snip', 'rigl']:
     plt.plot(x, y, color=styles[mode]['color'], marker=styles[mode]['marker'],
              linewidth=styles[mode]['linewidth'], label=styles[mode]['label'], markersize=8)
 
-# 3. Add text labels on key points
-# Annotate key DADP points
-hebbian_pts = data_points['hebbian']
-for sp, acc in hebbian_pts:
-    if sp > 88.0:
-        if abs(sp - 89.62) < 0.5:
-            plt.text(sp - 2.8, acc + 0.6, f'{acc:.2f}%', color='#d62728', fontweight='bold', fontsize=9)
-        elif abs(sp - 95.58) < 0.5:
-            plt.text(sp - 2.8, acc + 0.8, f'{acc:.2f}%', color='#d62728', fontweight='bold', fontsize=9)
-        elif abs(sp - 99.23) < 0.5:
-            plt.text(sp - 2.8, acc + 0.8, f'{acc:.2f}%', color='#d62728', fontweight='bold', fontsize=9)
+# 3. Add text labels on all points dynamically avoiding overlaps
+points_by_sp = {}
+for mode in ['hebbian', 'magnitude', 'snip', 'rigl']:
+    for sp, acc in data_points[mode]:
+        sp_round = round(sp, 1)
+        if sp_round not in points_by_sp:
+            points_by_sp[sp_round] = []
+        points_by_sp[sp_round].append((acc, mode, sp))
 
-# Annotate collapsed / high-sparsity points for other methods
-snip_pts = data_points['snip']
-for sp, acc in snip_pts:
-    if abs(sp - 99.00) < 0.1:
-        plt.text(sp - 3.2, acc - 1.5, f'{acc:.2f}%', color='#2ca02c', fontweight='bold', fontsize=9)
-
-mag_pts = data_points['magnitude']
-for sp, acc in mag_pts:
-    if abs(sp - 99.00) < 0.1:
-        plt.text(sp - 3.2, acc - 1.5, f'{acc:.2f}%', color='#1f77b4', fontweight='bold', fontsize=9)
+for sp_round, pts in points_by_sp.items():
+    pts = sorted(pts, key=lambda val: val[0], reverse=True)
+    for rank, (acc, mode, sp_orig) in enumerate(pts):
+        if acc < 20.0:
+            continue
+        offset_y = 0.6 if rank % 2 == 0 else -1.4
+        if mode == 'hebbian':
+            offset_y = 0.8
+        elif mode == 'rigl':
+            offset_y = -1.6
+        plt.text(sp_orig, acc + offset_y, f'{acc:.1f}%', 
+                 color=styles[mode]['color'], fontsize=8, ha='center', fontweight='bold')
 
 # Styling and Labels
 plt.title('ResNet-18 CIFAR-10 Pruning Benchmark\nTest Accuracy vs. Network Sparsity', fontsize=13, fontweight='bold', pad=10)
