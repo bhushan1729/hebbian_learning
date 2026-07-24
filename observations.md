@@ -17,8 +17,8 @@ We observed a dynamic oscillation in training loss that directly correlates with
 This feedback loop acts as a **self-regulating stabilizer**, ensuring the network only prunes when it has fully learned the features, and then pauses pruning to allow the remaining subnetworks to recover.
 
 ### 🧪 Supporting Evidence (100-Epoch Limit Test)
-*   **Result Log File**: [`logs/hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.log`](file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/logs/hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.log)
-*   **Result JSON File**: [`plots/results/history_hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.json`](file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/plots/results/history_hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.json)
+*   **Result Log File**: [logs/hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.log](file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/logs/hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.log)
+*   **Result JSON File**: [history_hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.json](file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/plots/results/history_hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.json)
 
 #### Specific Examples from Log:
 *   **Cycle A**:
@@ -58,8 +58,9 @@ Although DADP is fundamentally an unstructured connection-pruning algorithm (del
 *   Thus, structured neuron pruning emerges naturally from the local unstructured dynamics without requiring any explicit group sparsity constraints or layer-level pruning directives.
 
 ### 🧪 Supporting Evidence (100-Epoch Limit Test)
-*   **Result Log File**: [`logs/hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.log`](file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/logs/hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.log)
-*   **Result Plot**: [`plots/hebbian_mlp_MNIST_thr0.0001_dt10_visualization.png`](file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/plots/hebbian_mlp_MNIST_thr0.0001_dt10_visualization.png)
+*   **Result Log File**: [logs/hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.log](file:///c:/Users/Admin/OneDrive/Desktop/hebbian_learning/logs/hebbian_mlp_MNIST_thr1e-05_dt500_epoch100.log)
+*   **Result Plot**:
+![Hebbian MLP MNIST Connection Topology Visualization](plots/hebbian_mlp_MNIST_thr0.0001_dt10_visualization.png)
 *   **Visual Proof**: In the generated connection topology plots, multiple nodes in `Hidden 1` and `Hidden 2` have no incoming or outgoing connections colored active. These neurons are colored gray (inactive), representing physically dead units that have been automatically pruned out by DADP.
 
 ---
