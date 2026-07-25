@@ -35,11 +35,17 @@ def plot_all_methods_weight_distributions(checkpoint_paths, output_path="plots/r
             # Extract weights of Conv and Linear layers (avoiding batch norm params)
             if key.endswith('.weight') and 'bn' not in key and 'downsample' not in key:
                 w_tensor = model_dict[key]
+                if w_tensor.is_sparse:
+                    w_tensor = w_tensor.to_dense()
+                    
                 mask_key = key.replace('.weight', '.mask')
                 
                 # Apply mask if it exists in the state dict
                 if mask_key in model_dict:
-                    w_tensor = w_tensor * model_dict[mask_key]
+                    mask_tensor = model_dict[mask_key]
+                    if mask_tensor.is_sparse:
+                        mask_tensor = mask_tensor.to_dense()
+                    w_tensor = w_tensor * mask_tensor
                 
                 w_flat = w_tensor.cpu().numpy().flatten()
                 

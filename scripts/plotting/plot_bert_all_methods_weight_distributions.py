@@ -42,12 +42,18 @@ def plot_bert_weight_distributions(checkpoint_paths, output_path="plots/bert_tin
             # Extract 2D Linear weight matrices, filtering out 1D biases and LayerNorm parameters
             if key.endswith('.weight'):
                 w_tensor = model_dict[key]
+                if w_tensor.is_sparse:
+                    w_tensor = w_tensor.to_dense()
+                    
                 if w_tensor.dim() > 1: # Isolates actual attention and projection matrices
                     mask_key = key.replace('.weight', '.mask')
                     
                     # Apply mask if present
                     if mask_key in model_dict:
-                        w_tensor = w_tensor * model_dict[mask_key]
+                        mask_tensor = model_dict[mask_key]
+                        if mask_tensor.is_sparse:
+                            mask_tensor = mask_tensor.to_dense()
+                        w_tensor = w_tensor * mask_tensor
                     
                     w_flat = w_tensor.cpu().numpy().flatten()
                     w_active = w_flat[w_flat != 0.0]
@@ -61,7 +67,7 @@ def plot_bert_weight_distributions(checkpoint_paths, output_path="plots/bert_tin
         print(f"Method: {method} | Active Parameters analyzed: {all_w.size:,}")
         
         # Plot density histogram
-        ax.hist(all_w, bins=250, color=colors[method], alpha=0.85, density=True, edgecolor='black', linewidth=0.3)
+        ax.hist(all_w, bins=250, color='darkblue', alpha=0.95, density=True, edgecolor='black', linewidth=0.1)
         ax.set_title(f"{method} Weight Distribution", fontsize=12, fontweight='bold', pad=8)
         ax.set_ylabel("Probability Density", fontsize=10)
         ax.set_xlabel("Weight Value", fontsize=10)
