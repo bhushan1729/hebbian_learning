@@ -5,19 +5,20 @@ import os
 
 def plot_bert_weight_distributions(checkpoint_paths, output_path="plots/bert_tiny_all_methods_weight_distributions.png"):
     """
-    Loads model checkpoints for all 4 pruning methods on BERT-Tiny, extracts active weights
-    (non-zero values in 2D linear matrices, avoiding 1D LayerNorm and biases),
-    and plots their distributions in a 2x2 grid of subplots.
+    Loads model checkpoints for Baseline and all 4 pruning methods on BERT-Tiny,
+    extracts active weights (non-zero values in 2D linear matrices),
+    and plots their distributions in a 2x3 grid of subplots.
     """
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10), sharex=True, dpi=150)
+    fig, axes = plt.subplots(2, 3, figsize=(18, 10), sharex=True, dpi=150)
     axes = axes.flatten()
     
-    methods = ['DADP (Hebbian)', 'Magnitude', 'SNIP', 'RigL']
+    methods = ['Baseline (Dense)', 'DADP (Hebbian)', 'Magnitude', 'SNIP', 'RigL']
     colors = {
-        'DADP (Hebbian)': '#d62728',   # Red
-        'Magnitude': '#1f77b4',        # Blue
-        'SNIP': '#2ca02c',             # Green
-        'RigL': '#9467bd'              # Purple
+        'Baseline (Dense)': '#7f7f7f',  # Grey
+        'DADP (Hebbian)': '#d62728',    # Red
+        'Magnitude': '#1f77b4',         # Blue
+        'SNIP': '#2ca02c',              # Green
+        'RigL': '#9467bd'               # Purple
     }
     
     for idx, method in enumerate(methods):
@@ -70,7 +71,8 @@ def plot_bert_weight_distributions(checkpoint_paths, output_path="plots/bert_tin
         ax.axvline(0.0, color='black', linestyle=':', alpha=0.5, linewidth=1)
         
         # Add summary stats box
-        stats_text = (f"Sparsity: ~95%\n"
+        sparsity_str = "0%" if method == 'Baseline (Dense)' else "~95%"
+        stats_text = (f"Sparsity: {sparsity_str}\n"
                       f"Mean: {np.mean(all_w):.4f}\n"
                       f"Std: {np.std(all_w):.4f}\n"
                       f"Count: {all_w.size:,}")
@@ -78,7 +80,22 @@ def plot_bert_weight_distributions(checkpoint_paths, output_path="plots/bert_tin
                 verticalalignment='top', horizontalalignment='right',
                 bbox=dict(boxstyle='round,pad=0.5', facecolor='white', alpha=0.8, edgecolor='gray'))
 
-    plt.suptitle("Model-Wide Active Weight Distribution Profiles (BERT-Tiny at ~95% Sparsity)", y=0.98, fontsize=14, fontweight='bold')
+    # Format the 6th subplot as a clean info panel
+    ax_info = axes[5]
+    ax_info.axis('off')
+    info_text = (
+        "📊 Weight Distribution Notes:\n\n"
+        "• Baseline (Dense): Unpruned Gaussian weight distribution.\n"
+        "• DADP (Hebbian): Unimodal bell curve centered at zero.\n"
+        "• Magnitude: Bimodal distribution with a hard exclusion\n"
+        "  zone centered at zero (|w| < threshold).\n"
+        "• SNIP: Smooth distribution showing zero-drift.\n"
+        "• RigL: Dense-like distribution via active regrowth."
+    )
+    ax_info.text(0.05, 0.5, info_text, va='center', ha='left', fontsize=11,
+                 bbox=dict(boxstyle='round,pad=1.0', facecolor='#f9f9f9', alpha=0.9, edgecolor='lightgray'))
+
+    plt.suptitle("Model-Wide Active Weight Distribution Profiles (BERT-Tiny on SST-2)", y=0.98, fontsize=14, fontweight='bold')
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -89,6 +106,7 @@ def plot_bert_weight_distributions(checkpoint_paths, output_path="plots/bert_tin
 if __name__ == '__main__':
     # Local paths (default) - customize as needed
     CHECKPOINTS = {
+        'Baseline (Dense)': 'results/bert_experiments/results/models/baseline_bert_SST2.pth',
         'DADP (Hebbian)': 'results/bert_experiments/results/models/hebbian_bert_SST2_thr3e-06_dt500_best.pth',
         'Magnitude': 'results/bert_experiments/results/models/magnitude_bert_SST2_sp0.95.pth',
         'SNIP': 'results/bert_experiments/results/models/snip_bert_SST2_sp0.95.pth',
