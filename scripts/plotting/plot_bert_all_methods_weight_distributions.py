@@ -28,13 +28,13 @@ def plot_bert_weight_distributions(checkpoint_paths, output_path="plots/bert_tin
         model_dict = state_dict.get('model_state_dict', state_dict)
         
         active_weights = []
-        for key in model_dict.keys():
-            if key.endswith('.weight'):
+            # Extract 2D Linear weight matrices (excluding unpruned embedding tables and 1D biases/LayerNorm)
+            if key.endswith('.weight') and 'embeddings' not in key:
                 w_tensor = model_dict[key]
                 if hasattr(w_tensor, 'is_sparse') and w_tensor.is_sparse:
                     w_tensor = w_tensor.to_dense()
                     
-                if w_tensor.dim() > 1: # Isolates 2D attention and projection matrices
+                if w_tensor.dim() > 1:
                     mask_key = key.replace('.weight', '.mask')
                     if mask_key in model_dict:
                         mask_tensor = model_dict[mask_key]
