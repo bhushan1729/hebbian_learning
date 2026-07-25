@@ -28,6 +28,7 @@ def plot_bert_weight_distributions(checkpoint_paths, output_path="plots/bert_tin
         model_dict = state_dict.get('model_state_dict', state_dict)
         
         active_weights = []
+        for key in model_dict.keys():
             # Extract 2D Linear weight matrices (excluding unpruned embedding tables and 1D biases/LayerNorm)
             if key.endswith('.weight') and 'embeddings' not in key:
                 w_tensor = model_dict[key]
