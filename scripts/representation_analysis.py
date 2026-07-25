@@ -87,12 +87,13 @@ class LayerFeatureExtractor:
 
     def _get_hook(self, layer_name: str):
         def hook(module, input, output):
-            # Flatten feature dimensions for Conv outputs: (N, C, H, W) -> (N, C * H * W)
-            if output.dim() == 4:
-                flattened = output.detach().flatten(start_dim=1)
-                self.features[layer_name] = flattened
-            elif output.dim() == 2: # (N, D) for Linear layers
-                self.features[layer_name] = output.detach()
+            out_tensor = output[0] if isinstance(output, tuple) else output
+            if isinstance(out_tensor, torch.Tensor):
+                if out_tensor.dim() > 2:
+                    # Flatten feature dimensions for Conv (N, C, H, W) or Transformer (N, S, D) outputs -> (N, -1)
+                    self.features[layer_name] = out_tensor.detach().flatten(start_dim=1)
+                elif out_tensor.dim() == 2: # (N, D) for Linear layers
+                    self.features[layer_name] = out_tensor.detach()
         return hook
 
     def clear(self):
