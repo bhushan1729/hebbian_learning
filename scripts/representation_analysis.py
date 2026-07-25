@@ -246,8 +246,8 @@ def plot_dadp_vs_baseline(
 
 def main():
     parser = argparse.ArgumentParser(description='DADP Representation Analysis (Dataset Entropy & Effective Rank)')
-    parser.add_argument('--arch', type=str, default='vgg16', choices=['vgg16', 'resnet18'])
-    parser.add_argument('--dataset', type=str, default='CIFAR10', choices=['MNIST', 'CIFAR10'])
+    parser.add_argument('--arch', type=str, default='vgg16', choices=['vgg16', 'resnet18', 'bert'])
+    parser.add_argument('--dataset', type=str, default='CIFAR10', choices=['MNIST', 'CIFAR10', 'SST2', 'IMDB'])
     parser.add_argument('--baseline_model', type=str, required=True, help='Path to baseline dense model checkpoint (.pth)')
     parser.add_argument('--dadp_models', type=str, nargs='+', required=True, help='Paths to pruned DADP model checkpoints (.pth)')
     parser.add_argument('--labels', type=str, nargs='+', help='Custom labels for each DADP model')
@@ -255,6 +255,7 @@ def main():
     parser.add_argument('--output_dir', type=str, default='./results/representation_analysis')
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--num_batches', type=int, default=10, help='Number of batches to evaluate over')
+    parser.add_argument('--transformer_model', type=str, default='prajjwal1/bert-mini', help='pre-trained HuggingFace transformer model to use')
     parser.add_argument('--colab', action='store_true', help='running in Google Colab')
     
     args = parser.parse_args()
@@ -269,14 +270,21 @@ def main():
     print(f"Using device: {device}")
     
     # 1. Load Data
-    _, test_loader = get_data_loaders(args.dataset, args.batch_size, args.data_dir)
+    _, test_loader = get_data_loaders(args.dataset, args.batch_size, args.data_dir, args.transformer_model)
     
     # 2. Instantiate and load Baseline model
     print(f"Loading Baseline model ({args.arch})...")
     if args.arch == 'vgg16':
         baseline_model = BaselineVGG16(input_channels=3 if args.dataset == 'CIFAR10' else 1, num_classes=10)
-    else:
+    elif args.arch == 'resnet18':
         baseline_model = get_resnet18(num_classes=10, masked=False)
+    elif args.arch == 'bert':
+        from transformers import AutoModelForSequenceClassification, BertForSequenceClassification
+        num_classes = 2
+        if "bert-mini" in args.transformer_model or "bert-tiny" in args.transformer_model:
+            baseline_model = BertForSequenceClassification.from_pretrained(args.transformer_model, num_labels=num_classes)
+        else:
+            baseline_model = AutoModelForSequenceClassification.from_pretrained(args.transformer_model, num_labels=num_classes)
         
     state_base = load_sparse_checkpoint(args.baseline_model, device)
     baseline_model.load_state_dict(state_base['model_state_dict'])
@@ -312,8 +320,15 @@ def main():
         print(f"Evaluating DADP model '{label}' from path: {path}...")
         if args.arch == 'vgg16':
             dadp_model = BaselineVGG16(input_channels=3 if args.dataset == 'CIFAR10' else 1, num_classes=10)
-        else:
+        elif args.arch == 'resnet18':
             dadp_model = get_resnet18(num_classes=10, masked=False)
+        elif args.arch == 'bert':
+            from transformers import AutoModelForSequenceClassification, BertForSequenceClassification
+            num_classes = 2
+            if "bert-mini" in args.transformer_model or "bert-tiny" in args.transformer_model:
+                dadp_model = BertForSequenceClassification.from_pretrained(args.transformer_model, num_labels=num_classes)
+            else:
+                dadp_model = AutoModelForSequenceClassification.from_pretrained(args.transformer_model, num_labels=num_classes)
             
         dadp_model = convert_to_masked_model(dadp_model)
         state_dadp = load_sparse_checkpoint(path, device)
