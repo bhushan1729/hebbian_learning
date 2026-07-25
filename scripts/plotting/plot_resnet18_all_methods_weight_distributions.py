@@ -5,20 +5,14 @@ import os
 
 def plot_all_methods_weight_distributions(checkpoint_paths, output_path="plots/resnet18_all_methods_weight_distributions.png"):
     """
-    Loads model checkpoints for all 4 pruning methods, extracts the active weights
+    Loads model checkpoints for Baseline and all 4 pruning methods, extracts the active weights
     (non-zero values) across all Conv/Linear layers, and plots their distributions
-    in a 2x2 grid of subplots for comparison.
+    in a 2x3 grid of subplots for comparison.
     """
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10), sharex=True, dpi=150)
+    fig, axes = plt.subplots(2, 3, figsize=(18, 10), sharex=True, dpi=150)
     axes = axes.flatten()
     
-    methods = ['DADP (Hebbian)', 'Magnitude', 'SNIP', 'RigL']
-    colors = {
-        'DADP (Hebbian)': '#d62728',   # Red
-        'Magnitude': '#1f77b4',        # Blue
-        'SNIP': '#2ca02c',             # Green
-        'RigL': '#9467bd'              # Purple
-    }
+    methods = ['Baseline (Dense)', 'DADP (Hebbian)', 'Magnitude', 'SNIP', 'RigL']
     
     for idx, method in enumerate(methods):
         path = checkpoint_paths.get(method)
@@ -60,8 +54,8 @@ def plot_all_methods_weight_distributions(checkpoint_paths, output_path="plots/r
         all_w = np.concatenate(active_weights)
         print(f"Method: {method} | Active Parameters analyzed: {all_w.size:,}")
         
-        # Plot density histogram (PDF)
-        ax.hist(all_w, bins=250, color=colors[method], alpha=0.85, density=True, edgecolor='black', linewidth=0.3)
+        # Plot density histogram (PDF) using the same 'darkblue' color theme
+        ax.hist(all_w, bins=250, color='darkblue', alpha=0.95, density=True, edgecolor='black', linewidth=0.1)
         ax.set_title(f"{method} Weight Distribution", fontsize=12, fontweight='bold', pad=8)
         ax.set_ylabel("Probability Density", fontsize=10)
         ax.set_xlabel("Weight Value", fontsize=10)
@@ -71,13 +65,29 @@ def plot_all_methods_weight_distributions(checkpoint_paths, output_path="plots/r
         ax.axvline(0.0, color='black', linestyle=':', alpha=0.5, linewidth=1)
         
         # Add quick summary metrics text on subplot
-        stats_text = (f"Sparsity: ~99%\n"
+        sparsity_str = "0%" if method == 'Baseline (Dense)' else "~99%"
+        stats_text = (f"Sparsity: {sparsity_str}\n"
                       f"Mean: {np.mean(all_w):.4f}\n"
                       f"Std: {np.std(all_w):.4f}\n"
                       f"Count: {all_w.size:,}")
         ax.text(0.95, 0.95, stats_text, transform=ax.transAxes, fontsize=9,
                 verticalalignment='top', horizontalalignment='right',
                 bbox=dict(boxstyle='round,pad=0.5', facecolor='white', alpha=0.8, edgecolor='gray'))
+
+    # Format the 6th subplot as a clean info panel
+    ax_info = axes[5]
+    ax_info.axis('off')
+    info_text = (
+        "📊 Weight Distribution Notes:\n\n"
+        "• Baseline (Dense): Unpruned Gaussian weight distribution.\n"
+        "• DADP (Hebbian): Unimodal bell curve centered at zero.\n"
+        "• Magnitude: Bimodal distribution with a hard exclusion\n"
+        "  zone centered at zero (|w| < threshold).\n"
+        "• SNIP: Smooth distribution showing zero-drift.\n"
+        "• RigL: Dense-like distribution via active regrowth."
+    )
+    ax_info.text(0.05, 0.5, info_text, va='center', ha='left', fontsize=11,
+                 bbox=dict(boxstyle='round,pad=1.0', facecolor='#f9f9f9', alpha=0.9, edgecolor='lightgray'))
 
     plt.suptitle("Model-Wide Active Weight Distribution Profiles (ResNet-18 at ~99% Sparsity)", y=0.98, fontsize=14, fontweight='bold')
     plt.tight_layout(rect=[0, 0, 1, 0.96])
@@ -90,6 +100,7 @@ def plot_all_methods_weight_distributions(checkpoint_paths, output_path="plots/r
 if __name__ == '__main__':
     # Local paths (default) - customize as needed
     CHECKPOINTS = {
+        'Baseline (Dense)': 'results/resnet18_cifar10_experiments/models/baseline_resnet18_CIFAR10.pth',
         'DADP (Hebbian)': 'results/resnet18_cifar10_experiments/models/hebbian_resnet18_CIFAR10_thr0.0005_dt500_best.pth',
         'Magnitude': 'results/resnet18_cifar10_experiments/models/magnitude_resnet18_CIFAR10_sp0.99.pth',
         'SNIP': 'results/resnet18_cifar10_experiments/models/snip_resnet18_CIFAR10_sp0.99.pth',
