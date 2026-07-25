@@ -21,6 +21,8 @@ def snip_prune(model, loss_fn, dataloader, device, sparsity=0.9):
         loss = model(x, y, lengths=lengths)
     else:
         out = model(x)
+        if hasattr(out, 'logits'):
+            out = out.logits
         loss = loss_fn(out, y)
     loss.backward()
 
