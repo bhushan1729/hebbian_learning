@@ -64,12 +64,15 @@ The primary mechanism is **unstructured weight pruning**. Each individual connec
 *   **The logic**: We are not just deleting entire neurons; we are deleting (masking) specific connections between them.
 *   **The realization**: If you have a neuron $i$ connected to neuron $j$, the importance formula $\mathbb{E}\left[ \left| a_i \cdot \frac{\partial L}{\partial y_j} \right| \right]$ tells us exactly how much that specific "wire" contributes to the network's output. 
 
-### 2. **Neuron "Death" as a Side Effect**
-While we prune individual connections, a neuron is effectively **"deleted"** as an emergent property of the algorithm:
-*   **Incoming Pruning**: if all connections leading *into* a neuron are masked to zero, that neuron never fires ($a_j = 0$).
-*   **Outgoing Pruning**: if all connections leading *out* of a neuron are masked, its activity never reaches the next layer.
+### 2. **Neuron "Death" as an Emergent Property & Self-Correction**
+While DADP prunes individual connections ($w_{ij}$), neuron deletion happens naturally via two symmetric mechanisms:
+*   **Incoming Pruning**: If all connections leading *into* neuron $j$ drop to zero ($\sum_i M_{ij} = 0$), neuron $j$ never receives activation ($a_j = 0$).
+*   **Outgoing Pruning & Mathematical Self-Correction**: What if a neuron $i$ has active incoming connections, but all its *outgoing* connections to the next layer are pruned to zero? 
+    * During backpropagation, because no error gradient flows through zero outgoing weights, the post-synaptic error gradient for neuron $i$ becomes **zero** ($\frac{\partial L}{\partial y_i} = 0$).
+    * On the very next pruning interval, the importance score for all incoming connections into neuron $i$ drops to $I_{hi} = \mathbb{E}\left[ \left| a_h \cdot 0 \right| \right] = 0$.
+    * DADP **immediately prunes all incoming connections** to that orphaned neuron on the next step!
 
-The code tracks this in [model.py](../scripts/model.py) using `get_active_neurons()`. It specifically counts a neuron as "active" only if it has **at least one** non-zero incoming connection:
+The code tracks active neurons per layer in [model.py](../scripts/model.py) using `get_active_neurons()`. Because orphaned neurons automatically lose their incoming connections on the next iteration, counting active rows (neurons with $\ge 1$ active incoming connection) accurately reflects surviving functional units:
 
 ```python
 # From scripts/model.py
@@ -80,6 +83,6 @@ active_neurons += active_rows
 
 ### **Summary**
 1.  **Are we only removing (masking) neurons?** No, we mask individual connections ($w_{ij}$). 
-2.  **Are we keeping neurons alive and making some connections zero?** Yes, this is exactly what happens. A neuron stays "alive" and continues to compute as long as it has at least one active path through it. If a neuron loses all its connections, it effectively "dies" and is no longer part of the computational graph.
+2.  **Are we keeping neurons alive and making some connections zero?** Yes, this is exactly what happens. A neuron stays "alive" and continues to compute as long as it has at least one active path through it. If a neuron loses all its outgoing or incoming connections, it effectively "dies" and is pruned from the computational graph.
 
 This is why the formula considers both $a_i$ (if the source isn't firing, the connection is useless) and $\frac{\partial L}{\partial y_j}$ (if the target's output doesn't affect the loss, the connection is also useless).
