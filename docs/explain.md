@@ -1,6 +1,6 @@
 # Dynamic Activation-Derivative Pruning (DADP)
 
-We prune network connections based on the following structural importance criterion:
+We prune network connections based on the following connection-level (synaptic) importance criterion:
 
 $$
 I_{ij} = \mathbb{E} \left[ \left| a_i \cdot \frac{\partial L}{\partial y_j} \right| \right]
