@@ -4,7 +4,7 @@ This is a great question! This formula is where the "biological" Hebbian idea me
 The formula describes the importance of a single "synapse" (weight) $w_{ij}$ connecting neuron $i$ (previous layer) to neuron $j$ (current layer).
 
 *   **$a_i$ (Pre-Synaptic Activity):** This represents how much "signal" neuron $i$ is sending. If $a_i = 0$, the neuron is silent. In Hebbian terms, if the pre-synaptic neuron isn't "firing," the connection between $i$ and $j$ isn't doing any work at that moment.
-*   **$\frac{\partial L}{\partial y_j}$ (Post-Synaptic Error Signal):** In biology, we look at post-synaptic firing. In Deep Learning, we look at the **gradient**. This term tells us: *"How sensitive is the overall loss ($L$) to the activity of neuron $j$ ($y_j$)?*
+*   **$\frac{\partial L}{\partial y_j}$ (Post-Synaptic Error Signal):** In biology, we look at post-synaptic firing. In Deep Learning, we look at the **gradient**. This term tells us: *"How sensitive is the overall loss $L$ to the activity of neuron $j$ ($y_j$)?*
     *   If this gradient is large, it means neuron $j$ is in a "high-learning" state or is critical for correcting an error.
     *   If this gradient is near zero, it means neuron $j$ is already "satisfied" or its activity doesn't matter for the final classification.
     
