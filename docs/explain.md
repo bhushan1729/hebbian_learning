@@ -1,4 +1,12 @@
-This is a great question! This formula is where the "biological" Hebbian idea meets "modern" Deep Learning. Let’s break it down into its three biological and mathematical components.
+# Dynamic Activation-Derivative Pruning (DADP)
+
+We prune network connections based on the following structural importance criterion:
+
+$$
+I_{ij} = \mathbb{E} \left[ \left| a_i \cdot \frac{\partial L}{\partial y_j} \right| \right]
+$$
+
+This formula bridges biological Hebbian learning with modern deep learning optimization. Below is the detailed breakdown of its biological and mathematical components.
 
 ### 1. The Components: Pre-synaptic and Post-synaptic
 The formula describes the importance of a single "synapse" (weight) $w_{ij}$ connecting neuron $i$ (previous layer) to neuron $j$ (current layer).
