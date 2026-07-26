@@ -250,8 +250,8 @@ def main():
     parser.add_argument('--arch', type=str, default='vgg16', choices=['vgg16', 'resnet18', 'bert'])
     parser.add_argument('--dataset', type=str, default='CIFAR10', choices=['MNIST', 'CIFAR10', 'SST2', 'IMDB'])
     parser.add_argument('--baseline_model', type=str, required=True, help='Path to baseline dense model checkpoint (.pth)')
-    parser.add_argument('--dadp_models', type=str, nargs='+', required=True, help='Paths to pruned DADP model checkpoints (.pth)')
-    parser.add_argument('--labels', type=str, nargs='+', help='Custom labels for each DADP model')
+    parser.add_argument('--pruned_models', '--dadp_models', dest='pruned_models', type=str, nargs='+', required=True, help='Paths to pruned model checkpoints (.pth) for comparison (DADP, Magnitude, SNIP, RigL, etc.)')
+    parser.add_argument('--labels', type=str, nargs='+', help='Custom labels for each model (e.g. "DADP (Hebbian)" "Magnitude" "SNIP" "RigL")')
     parser.add_argument('--data_dir', type=str, default='./data')
     parser.add_argument('--output_dir', type=str, default='./results/representation_analysis')
     parser.add_argument('--batch_size', type=int, default=128)
@@ -288,65 +288,79 @@ def main():
             baseline_model = AutoModelForSequenceClassification.from_pretrained(args.transformer_model, num_labels=num_classes)
         
     state_base = load_sparse_checkpoint(args.baseline_model, device)
-    baseline_model.load_state_dict(state_base['model_state_dict'])
+    baseline_model.load_state_dict(state_base.get('model_state_dict', state_base), strict=False)
     
-    # 3. Setup labels for DADP models
+    # 3. Setup labels for Pruned models
     if not args.labels:
         args.labels = []
-        for path in args.dadp_models:
+        for path in args.pruned_models:
             filename = os.path.basename(path)
-            if 'thr' in filename:
+            if 'hebbian' in filename or 'dadp' in filename:
+                if 'thr' in filename:
+                    parts = filename.split('thr')
+                    thr_val = parts[1].split('_')[0]
+                    args.labels.append(f"DADP (thr={thr_val})")
+                else:
+                    args.labels.append("DADP (Hebbian)")
+            elif 'magnitude' in filename:
+                args.labels.append("Magnitude")
+            elif 'snip' in filename:
+                args.labels.append("SNIP")
+            elif 'rigl' in filename:
+                args.labels.append("RigL")
+            elif 'thr' in filename:
                 parts = filename.split('thr')
                 thr_val = parts[1].split('_')[0]
                 args.labels.append(f"DADP (thr={thr_val})")
             elif 'sp' in filename:
                 parts = filename.split('sp')
                 sp_val = parts[1].split('_')[0].replace('.pth', '')
-                args.labels.append(f"DADP (sp={sp_val})")
+                args.labels.append(f"Pruned (sp={sp_val})")
             else:
                 args.labels.append(filename.replace('.pth', ''))
                 
     # Validate labels length matches models length
-    if len(args.labels) != len(args.dadp_models):
+    if len(args.labels) != len(args.pruned_models):
         print("⚠️ Warning: Length of labels does not match models. Auto-generating labels.")
-        args.labels = [f"DADP {i}" for i in range(len(args.dadp_models))]
+        args.labels = [f"Pruned Model {i+1}" for i in range(len(args.pruned_models))]
         
     # 4. Evaluate Baseline model
     print("Evaluating Baseline layer-wise entropy metrics...")
     baseline_metrics = evaluate_layerwise_entropy(baseline_model, test_loader, device, args.num_batches)
     
-    # 5. Evaluate all DADP models
-    dadp_metrics_dict = {}
-    for path, label in zip(args.dadp_models, args.labels):
-        print(f"Evaluating DADP model '{label}' from path: {path}...")
+    # 5. Evaluate all Pruned models
+    pruned_metrics_dict = {}
+    for path, label in zip(args.pruned_models, args.labels):
+        print(f"Evaluating Pruned model '{label}' from path: {path}...")
         if args.arch == 'vgg16':
-            dadp_model = BaselineVGG16(input_channels=3 if args.dataset == 'CIFAR10' else 1, num_classes=10)
+            pruned_model = BaselineVGG16(input_channels=3 if args.dataset == 'CIFAR10' else 1, num_classes=10)
         elif args.arch == 'resnet18':
-            dadp_model = get_resnet18(num_classes=10, masked=False)
+            pruned_model = get_resnet18(num_classes=10, masked=False)
         elif args.arch == 'bert':
             from transformers import AutoModelForSequenceClassification, BertForSequenceClassification
             num_classes = 2
             if "bert-mini" in args.transformer_model or "bert-tiny" in args.transformer_model:
-                dadp_model = BertForSequenceClassification.from_pretrained(args.transformer_model, num_labels=num_classes)
+                pruned_model = BertForSequenceClassification.from_pretrained(args.transformer_model, num_labels=num_classes)
             else:
-                dadp_model = AutoModelForSequenceClassification.from_pretrained(args.transformer_model, num_labels=num_classes)
+                pruned_model = AutoModelForSequenceClassification.from_pretrained(args.transformer_model, num_labels=num_classes)
             
-        dadp_model = convert_to_masked_model(dadp_model)
-        state_dadp = load_sparse_checkpoint(path, device)
-        dadp_model.load_state_dict(state_dadp['model_state_dict'])
+        pruned_model = convert_to_masked_model(pruned_model)
+        state_pruned = load_sparse_checkpoint(path, device)
+        model_dict = state_pruned.get('model_state_dict', state_pruned)
+        pruned_model.load_state_dict(model_dict, strict=False)
         
-        metrics = evaluate_layerwise_entropy(dadp_model, test_loader, device, args.num_batches)
-        dadp_metrics_dict[label] = metrics
+        metrics = evaluate_layerwise_entropy(pruned_model, test_loader, device, args.num_batches)
+        pruned_metrics_dict[label] = metrics
     
     # 6. Generate plots and save JSON statistics
-    plot_dadp_vs_baseline(baseline_metrics, dadp_metrics_dict, args.arch.upper(), args.output_dir)
+    plot_dadp_vs_baseline(baseline_metrics, pruned_metrics_dict, args.arch.upper(), args.output_dir)
     
     json_path = os.path.join(args.output_dir, 'results', f"{args.arch}_representation_entropy.json")
     os.makedirs(os.path.dirname(json_path), exist_ok=True)
     with open(json_path, 'w') as f:
         json.dump({
             "baseline": baseline_metrics,
-            "dadp_sweeps": dadp_metrics_dict
+            "pruned_methods": pruned_metrics_dict
         }, f, indent=4)
     print(f"✅ Representation metrics JSON saved to: {json_path}")
     print("Done!")
