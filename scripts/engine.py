@@ -29,6 +29,10 @@ class Trainer:
         self.use_amp = device.type == 'cuda'
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
         
+        # cuDNN auto-tuner: finds fastest conv algorithm for fixed input sizes (64x64 Tiny ImageNet)
+        if self.use_amp:
+            torch.backends.cudnn.benchmark = True
+        
         # BiLSTM_CRF manages its own loss
         self.is_ner = hasattr(self.model, 'tag_to_ix')
         if not self.is_ner:
@@ -167,13 +171,16 @@ class Trainer:
         for batch_idx, batch in enumerate(self.train_loader):
             if len(batch) == 3:
                 data, target, lengths = batch
-                lengths = lengths.to(self.device)
+                lengths = lengths.to(self.device, non_blocking=True)
             else:
                 data, target = batch
                 lengths = None
                 
-            data, target = data.to(self.device), target.to(self.device)
-            self.optimizer.zero_grad()
+            # non_blocking=True: async CPU→GPU transfer overlaps with compute on previous batch
+            data   = data.to(self.device, non_blocking=True)
+            target = target.to(self.device, non_blocking=True)
+            # set_to_none=True: drops gradient pointers instead of zeroing, saves memory writes
+            self.optimizer.zero_grad(set_to_none=True)
             
             # AMP autocast: uses float16 on GPU Tensor Cores (T4/V100/A100), float32 on CPU
             with torch.cuda.amp.autocast(enabled=self.use_amp):

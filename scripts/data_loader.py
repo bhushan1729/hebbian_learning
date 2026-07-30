@@ -133,28 +133,34 @@ def collate_fn_ner(batch):
         padded_labels[i, :length] = lbl
     return padded_sentences, padded_labels, lengths
 
-class HuggingFaceTinyImageNetDataset(Dataset):
+class RAMCachedHFDataset(Dataset):
     """
-    Lazy Hugging Face Tiny-ImageNet dataset wrapper.
-    Does NOT pre-load images into RAM. Instead, decodes images on-the-fly
-    per batch using PyTorch's parallel DataLoader workers.
-    CIFAR-10 never pre-loaded either - it just used fast binary numpy pickle files.
+    RAM-cached Hugging Face Tiny-ImageNet dataset.
+    Converts the entire HF Arrow split into a Python list of PIL images at startup.
+    Plain Python lists are fork-safe, so num_workers=4 works without Arrow IPC conflicts.
+    Memory cost: ~150-200 MB for 100k 64x64 RGB images as PIL objects.
     """
     def __init__(self, hf_split, transform=None):
         self.transform = transform
-        self.hf_split = hf_split
-        print(f"Indexed {len(hf_split)} Tiny-ImageNet images from HuggingFace (lazy, no pre-loading).")
+        n = len(hf_split)
+        print(f"⚡ Caching {n} Tiny-ImageNet images into CPU RAM (fork-safe PIL list)...")
+        # Batch-fetch all columns at once (faster than per-item iteration)
+        self.images = [img.convert('RGB') for img in hf_split['image']]
+        self.labels = list(hf_split['label'])
+        print(f"✅ Cached {n} images into RAM. DataLoader workers can now run at full speed.")
 
     def __len__(self):
-        return len(self.hf_split)
+        return len(self.images)
 
     def __getitem__(self, idx):
-        item = self.hf_split[idx]
-        img = item['image'].convert('RGB')
-        label = item['label']
+        img = self.images[idx]
+        label = self.labels[idx]
         if self.transform:
             img = self.transform(img)
         return img, label
+
+# Keep old name as alias for backward-compat with any existing checkpoints
+HuggingFaceTinyImageNetDataset = RAMCachedHFDataset
 
 def setup_tiny_imagenet_val(val_dir):
     """
@@ -441,11 +447,8 @@ def get_data_loaders(dataset_name='MNIST', batch_size=64, data_dir='./data', tra
     else:
         raise ValueError(f"Dataset {dataset_name} not supported yet.")
 
-    # HuggingFace Arrow datasets are not multiprocessing-safe (fork + shared memory conflict).
-    # For HF-loaded TinyImageNet, use num_workers=0 (fast enough since HF caches in Parquet/Arrow).
-    # For disk-based ImageFolder (local JPEG), use num_workers=4 for parallel JPEG decoding.
-    is_hf_dataset = isinstance(train_dataset, HuggingFaceTinyImageNetDataset)
-    num_workers = 0 if is_hf_dataset else (min(4, os.cpu_count() or 2) if HAS_TORCHVISION else 0)
+    # RAM-cached datasets (HF or ImageFolder) are fork-safe: always use parallel workers.
+    num_workers = min(4, os.cpu_count() or 2) if HAS_TORCHVISION else 0
     pin_memory = torch.cuda.is_available()
     persistent_workers = True if num_workers > 0 else False
 
