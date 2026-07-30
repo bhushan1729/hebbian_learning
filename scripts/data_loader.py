@@ -401,7 +401,19 @@ def get_data_loaders(dataset_name='MNIST', batch_size=64, data_dir='./data', tra
     else:
         raise ValueError(f"Dataset {dataset_name} not supported yet.")
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    num_workers = min(4, os.cpu_count() or 2) if HAS_TORCHVISION else 0
+    pin_memory = torch.cuda.is_available()
+    persistent_workers = True if num_workers > 0 else False
+
+    train_loader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True,
+        num_workers=num_workers, pin_memory=pin_memory,
+        persistent_workers=persistent_workers
+    )
+    test_loader = DataLoader(
+        test_dataset, batch_size=batch_size, shuffle=False,
+        num_workers=num_workers, pin_memory=pin_memory,
+        persistent_workers=persistent_workers
+    )
 
     return train_loader, test_loader
