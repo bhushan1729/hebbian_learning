@@ -164,55 +164,66 @@ def setup_tiny_imagenet_val(val_dir):
 
 def download_tiny_imagenet(data_dir):
     """
-    Downloads and extracts Tiny-ImageNet-200. If running in Google Colab,
-    caches the unzipped dataset permanently on Google Drive so future sessions
-    load instantly without re-downloading.
+    Fast, chunked download & extraction of Tiny-ImageNet-200.
+    Stores the single 236MB zip file permanently on Google Drive (in Colab) for persistence,
+    but extracts 100k images to fast local SSD (/content/data) to bypass Google Drive FUSE latency.
     """
     import zipfile
     import urllib.request
     
-    # 1. Check Google Drive cache path if in Colab
-    drive_cache_root = "/content/drive/MyDrive/hebbian_learning/data"
-    is_colab = os.path.exists("/content/drive/MyDrive")
-    
-    if is_colab:
-        os.makedirs(drive_cache_root, exist_ok=True)
-        drive_tiny_dir = os.path.join(drive_cache_root, 'tiny-imagenet-200')
-        if os.path.exists(drive_tiny_dir):
-            print(f"Found cached Tiny-ImageNet dataset on Google Drive: {drive_tiny_dir}")
-            setup_tiny_imagenet_val(os.path.join(drive_tiny_dir, 'val'))
-            return drive_tiny_dir
-
-    # 2. Check local data_dir
+    # Check if local extracted folder already exists
     local_tiny_dir = os.path.join(data_dir, 'tiny-imagenet-200')
-    if os.path.exists(local_tiny_dir):
+    if os.path.exists(local_tiny_dir) and os.path.exists(os.path.join(local_tiny_dir, 'train')):
         setup_tiny_imagenet_val(os.path.join(local_tiny_dir, 'val'))
         return local_tiny_dir
 
-    # 3. Determine target download directory (prefer Drive in Colab for persistence)
-    target_data_dir = drive_cache_root if is_colab else data_dir
-    os.makedirs(target_data_dir, exist_ok=True)
+    drive_cache_root = "/content/drive/MyDrive/hebbian_learning/data"
+    is_colab = os.path.exists("/content/drive/MyDrive")
     
-    target_tiny_dir = os.path.join(target_data_dir, 'tiny-imagenet-200')
-    zip_path = os.path.join(target_data_dir, 'tiny-imagenet-200.zip')
+    zip_drive_path = os.path.join(drive_cache_root, 'tiny-imagenet-200.zip')
+    zip_local_path = os.path.join(data_dir, 'tiny-imagenet-200.zip')
+    
+    os.makedirs(data_dir, exist_ok=True)
+    if is_colab:
+        os.makedirs(drive_cache_root, exist_ok=True)
+
     url = "http://cs231n.stanford.edu/tiny-imagenet-200.zip"
     
-    print(f"Downloading Tiny-ImageNet-200 dataset from {url}...")
-    try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=120) as resp, open(zip_path, 'wb') as out_file:
-            out_file.write(resp.read())
-        print(f"Extracting tiny-imagenet-200.zip to {target_data_dir}...")
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(target_data_dir)
-        if os.path.exists(zip_path):
-            os.remove(zip_path)
-        setup_tiny_imagenet_val(os.path.join(target_tiny_dir, 'val'))
-        print(f"Tiny-ImageNet dataset successfully saved to: {target_tiny_dir}")
-        return target_tiny_dir
-    except Exception as e:
-        print(f"Could not download Tiny-ImageNet automatically: {e}")
-        return target_tiny_dir
+    # Step 1: Ensure zip file exists (either on Drive or locally)
+    target_zip = zip_drive_path if is_colab else zip_local_path
+    
+    if is_colab and os.path.exists(zip_drive_path):
+        print(f"📦 Found cached Tiny-ImageNet zip archive on Google Drive ({os.path.getsize(zip_drive_path)/(1024*1024):.1f} MB)")
+    elif not os.path.exists(target_zip):
+        print(f"🚀 Downloading Tiny-ImageNet-200 (236 MB) from {url}...")
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=180) as resp, open(target_zip, 'wb') as out_file:
+                total_size = int(resp.headers.get('content-length', 247225728))
+                downloaded = 0
+                block_size = 1024 * 1024 # 1MB chunks
+                while True:
+                    buffer = resp.read(block_size)
+                    if not buffer:
+                        break
+                    downloaded += len(buffer)
+                    out_file.write(buffer)
+                    percent = (downloaded / total_size) * 100
+                    print(f"\r progress: {downloaded/(1024*1024):.1f}/{total_size/(1024*1024):.1f} MB ({percent:.1f}%)", end="", flush=True)
+            print("\n✅ Download complete!")
+        except Exception as e:
+            print(f"\n⚠️ Download error: {e}")
+            if is_colab and target_zip != zip_local_path:
+                target_zip = zip_local_path
+                
+    # Step 2: Extract to fast local SSD (bypassing Drive FUSE 100k files overhead)
+    print(f"⚡ Extracting Tiny-ImageNet images to fast local SSD ({local_tiny_dir})...")
+    with zipfile.ZipFile(target_zip, 'r') as zip_ref:
+        zip_ref.extractall(data_dir)
+        
+    setup_tiny_imagenet_val(os.path.join(local_tiny_dir, 'val'))
+    print("✅ Tiny-ImageNet dataset ready!")
+    return local_tiny_dir
 
 def get_data_loaders(dataset_name='MNIST', batch_size=64, data_dir='./data', transformer_model='prajjwal1/bert-mini'):
     """
