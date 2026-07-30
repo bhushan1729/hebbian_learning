@@ -135,57 +135,26 @@ def collate_fn_ner(batch):
 
 class HuggingFaceTinyImageNetDataset(Dataset):
     """
-    Ultra-fast Tiny-ImageNet wrapper for Hugging Face CDN datasets (zh-plus/tiny-imagenet or Maysee/tiny-imagenet).
-    Loads images directly from memory/HF parquet cache and applies PyTorch torchvision transforms.
+    Lazy Hugging Face Tiny-ImageNet dataset wrapper.
+    Does NOT pre-load images into RAM. Instead, decodes images on-the-fly
+    per batch using PyTorch's parallel DataLoader workers.
+    CIFAR-10 never pre-loaded either - it just used fast binary numpy pickle files.
     """
     def __init__(self, hf_split, transform=None):
         self.transform = transform
-        print(f"⚡ Pre-loading {len(hf_split)} Tiny-ImageNet images from Hugging Face dataset into System RAM...")
-        self.samples = []
-        for item in hf_split:
-            img = item['image'].convert('RGB')
-            label = item['label']
-            self.samples.append((img, label))
-        print(f"✅ Pre-loaded {len(self.samples)} Hugging Face images into System RAM!")
+        self.hf_split = hf_split
+        print(f"Indexed {len(hf_split)} Tiny-ImageNet images from HuggingFace (lazy, no pre-loading).")
 
     def __len__(self):
-        return len(self.samples)
+        return len(self.hf_split)
 
     def __getitem__(self, idx):
-        img, target = self.samples[idx]
+        item = self.hf_split[idx]
+        img = item['image'].convert('RGB')
+        label = item['label']
         if self.transform:
             img = self.transform(img)
-        return img, target
-
-class FastTinyImageNetDataset(Dataset):
-    """
-    Ultra-fast in-RAM Tiny-ImageNet dataset wrapper.
-    Pre-loads raw image objects into System RAM once at startup
-    to eliminate disk I/O, inode lookups, and filesystem latency.
-    Reduces training time per epoch from minutes down to ~10 seconds!
-    """
-    def __init__(self, folder_dir, transform=None):
-        self.transform = transform
-        raw_ds = datasets.ImageFolder(folder_dir)
-        set_name = os.path.basename(folder_dir.rstrip('/\\'))
-        print(f"⚡ Pre-loading {len(raw_ds)} Tiny-ImageNet {set_name} images into System RAM for 40x speedup...")
-        
-        self.samples = []
-        for i in range(len(raw_ds.samples)):
-            path, target = raw_ds.samples[i]
-            with open(path, 'rb') as f:
-                img = Image.open(f).convert('RGB')
-            self.samples.append((img, target))
-        print(f"✅ Pre-loaded {len(self.samples)} {set_name} images into RAM!")
-
-    def __len__(self):
-        return len(self.samples)
-
-    def __getitem__(self, idx):
-        img, target = self.samples[idx]
-        if self.transform:
-            img = self.transform(img)
-        return img, target
+        return img, label
 
 def setup_tiny_imagenet_val(val_dir):
     """
@@ -363,13 +332,14 @@ def get_data_loaders(dataset_name='MNIST', batch_size=64, data_dir='./data', tra
                     tiny_dir = download_tiny_imagenet(data_dir)
                     train_dir = os.path.join(tiny_dir, 'train')
                     val_dir = os.path.join(tiny_dir, 'val')
-                    train_dataset = FastTinyImageNetDataset(train_dir, transform=train_transform)
-                    test_dataset = FastTinyImageNetDataset(val_dir, transform=test_transform)
-                    print(f"Successfully loaded Tiny-ImageNet dataset into RAM. Train samples: {len(train_dataset)}, Test samples: {len(test_dataset)}")
-                except Exception as e_fast:
-                    print(f"Failed to load FastTinyImageNetDataset: {e_fast}. Falling back to standard ImageFolder.")
+                    # Use standard ImageFolder (lazy loading) - DataLoader workers handle parallel disk reads
                     train_dataset = datasets.ImageFolder(train_dir, transform=train_transform)
                     test_dataset = datasets.ImageFolder(val_dir, transform=test_transform)
+                    print(f"Successfully loaded Tiny-ImageNet. Train samples: {len(train_dataset)}, Test samples: {len(test_dataset)}")
+                except Exception as e_load:
+                    print(f"Failed to load Tiny-ImageNet: {e_load}. Falling back to synthetic.")
+                    train_dataset = SyntheticImageDataset(3, 64, 64, 256, 200)
+                    test_dataset = SyntheticImageDataset(3, 64, 64, 128, 200)
         else:
             print("Torchvision not installed. Falling back to synthetic Tiny-ImageNet.")
             train_dataset = SyntheticImageDataset(3, 64, 64, 256, 200)
@@ -471,7 +441,11 @@ def get_data_loaders(dataset_name='MNIST', batch_size=64, data_dir='./data', tra
     else:
         raise ValueError(f"Dataset {dataset_name} not supported yet.")
 
-    num_workers = min(4, os.cpu_count() or 2) if HAS_TORCHVISION else 0
+    # HuggingFace Arrow datasets are not multiprocessing-safe (fork + shared memory conflict).
+    # For HF-loaded TinyImageNet, use num_workers=0 (fast enough since HF caches in Parquet/Arrow).
+    # For disk-based ImageFolder (local JPEG), use num_workers=4 for parallel JPEG decoding.
+    is_hf_dataset = isinstance(train_dataset, HuggingFaceTinyImageNetDataset)
+    num_workers = 0 if is_hf_dataset else (min(4, os.cpu_count() or 2) if HAS_TORCHVISION else 0)
     pin_memory = torch.cuda.is_available()
     persistent_workers = True if num_workers > 0 else False
 
