@@ -129,7 +129,7 @@ def main():
         num_classes = 200
         input_channels = 3
         input_size = 12288
-        fc_input_dim = 8192
+        fc_input_dim = 16384
     elif args.dataset == 'CoNLL2003':
         num_classes = 9 # standard NER classes
     elif args.dataset in ['SST2', 'IMDB']:
