@@ -2,6 +2,8 @@ import torch
 from torch.utils.data import DataLoader, Dataset, TensorDataset
 import os
 
+from PIL import Image
+
 try:
     from torchvision import datasets, transforms
     HAS_TORCHVISION = True
@@ -130,6 +132,30 @@ def collate_fn_ner(batch):
         padded_sentences[i, :length] = sent
         padded_labels[i, :length] = lbl
     return padded_sentences, padded_labels, lengths
+
+class HuggingFaceTinyImageNetDataset(Dataset):
+    """
+    Ultra-fast Tiny-ImageNet wrapper for Hugging Face CDN datasets (zh-plus/tiny-imagenet or Maysee/tiny-imagenet).
+    Loads images directly from memory/HF parquet cache and applies PyTorch torchvision transforms.
+    """
+    def __init__(self, hf_split, transform=None):
+        self.transform = transform
+        print(f"⚡ Pre-loading {len(hf_split)} Tiny-ImageNet images from Hugging Face dataset into System RAM...")
+        self.samples = []
+        for item in hf_split:
+            img = item['image'].convert('RGB')
+            label = item['label']
+            self.samples.append((img, label))
+        print(f"✅ Pre-loaded {len(self.samples)} Hugging Face images into System RAM!")
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        img, target = self.samples[idx]
+        if self.transform:
+            img = self.transform(img)
+        return img, target
 
 class FastTinyImageNetDataset(Dataset):
     """
@@ -307,29 +333,43 @@ def get_data_loaders(dataset_name='MNIST', batch_size=64, data_dir='./data', tra
             
     elif dataset_name in ['TinyImageNet', 'Tiny-ImageNet', 'tiny_imagenet']:
         if HAS_TORCHVISION:
+            train_transform = transforms.Compose([
+                transforms.RandomCrop(64, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.4802, 0.4481, 0.3975), (0.2302, 0.2265, 0.2262))
+            ])
+            test_transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize((0.4802, 0.4481, 0.3975), (0.2302, 0.2265, 0.2262))
+            ])
+            
+            # Method 1: Attempt Hugging Face CDN load (ultra-fast 3-second download)
+            loaded_hf = False
             try:
-                tiny_dir = download_tiny_imagenet(data_dir)
-                train_dir = os.path.join(tiny_dir, 'train')
-                val_dir = os.path.join(tiny_dir, 'val')
+                from datasets import load_dataset
+                print("🚀 Attempting Hugging Face CDN load for Tiny-ImageNet (zh-plus/tiny-imagenet)...")
+                hf_ds = load_dataset("zh-plus/tiny-imagenet", cache_dir=data_dir)
+                train_dataset = HuggingFaceTinyImageNetDataset(hf_ds['train'], transform=train_transform)
+                val_key = 'valid' if 'valid' in hf_ds else ('validation' if 'validation' in hf_ds else 'test')
+                test_dataset = HuggingFaceTinyImageNetDataset(hf_ds[val_key], transform=test_transform)
+                print(f"Successfully loaded Tiny-ImageNet from HuggingFace CDN. Train samples: {len(train_dataset)}, Test samples: {len(test_dataset)}")
+                loaded_hf = True
+            except Exception as e_hf:
+                print(f"HuggingFace CDN load skipped/failed ({e_hf}). Using FastTinyImageNetDataset...")
                 
-                train_transform = transforms.Compose([
-                    transforms.RandomCrop(64, padding=4),
-                    transforms.RandomHorizontalFlip(),
-                    transforms.ToTensor(),
-                    transforms.Normalize((0.4802, 0.4481, 0.3975), (0.2302, 0.2265, 0.2262))
-                ])
-                test_transform = transforms.Compose([
-                    transforms.ToTensor(),
-                    transforms.Normalize((0.4802, 0.4481, 0.3975), (0.2302, 0.2265, 0.2262))
-                ])
-                
-                train_dataset = FastTinyImageNetDataset(train_dir, transform=train_transform)
-                test_dataset = FastTinyImageNetDataset(val_dir, transform=test_transform)
-                print(f"Successfully loaded Tiny-ImageNet dataset into RAM. Train samples: {len(train_dataset)}, Test samples: {len(test_dataset)}")
-            except Exception as e:
-                print(f"Failed to load FastTinyImageNetDataset: {e}. Falling back to standard ImageFolder.")
-                train_dataset = datasets.ImageFolder(train_dir, transform=train_transform)
-                test_dataset = datasets.ImageFolder(val_dir, transform=test_transform)
+            if not loaded_hf:
+                try:
+                    tiny_dir = download_tiny_imagenet(data_dir)
+                    train_dir = os.path.join(tiny_dir, 'train')
+                    val_dir = os.path.join(tiny_dir, 'val')
+                    train_dataset = FastTinyImageNetDataset(train_dir, transform=train_transform)
+                    test_dataset = FastTinyImageNetDataset(val_dir, transform=test_transform)
+                    print(f"Successfully loaded Tiny-ImageNet dataset into RAM. Train samples: {len(train_dataset)}, Test samples: {len(test_dataset)}")
+                except Exception as e_fast:
+                    print(f"Failed to load FastTinyImageNetDataset: {e_fast}. Falling back to standard ImageFolder.")
+                    train_dataset = datasets.ImageFolder(train_dir, transform=train_transform)
+                    test_dataset = datasets.ImageFolder(val_dir, transform=test_transform)
         else:
             print("Torchvision not installed. Falling back to synthetic Tiny-ImageNet.")
             train_dataset = SyntheticImageDataset(3, 64, 64, 256, 200)
