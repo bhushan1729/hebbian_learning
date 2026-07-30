@@ -24,6 +24,11 @@ class Trainer:
         self.lr = lr
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
         
+        # AMP GradScaler: activates T4 Tensor Cores for float16 operations
+        # Falls back gracefully to float32 on CPU or unsupported GPUs
+        self.use_amp = device.type == 'cuda'
+        self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
+        
         # BiLSTM_CRF manages its own loss
         self.is_ner = hasattr(self.model, 'tag_to_ix')
         if not self.is_ner:
@@ -170,16 +175,20 @@ class Trainer:
             data, target = data.to(self.device), target.to(self.device)
             self.optimizer.zero_grad()
             
-            if self.is_ner:
-                loss = self.model(data, target, lengths=lengths)
-            else:
-                output = self.model(data)
-                if hasattr(output, 'logits'):
-                    output = output.logits
-                loss = self.criterion(output, target)
+            # AMP autocast: uses float16 on GPU Tensor Cores (T4/V100/A100), float32 on CPU
+            with torch.cuda.amp.autocast(enabled=self.use_amp):
+                if self.is_ner:
+                    loss = self.model(data, target, lengths=lengths)
+                else:
+                    output = self.model(data)
+                    if hasattr(output, 'logits'):
+                        output = output.logits
+                    loss = self.criterion(output, target)
                 
-            loss.backward()
-            self.optimizer.step()
+            # AMP scaled backward pass
+            self.scaler.scale(loss).backward()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
             
             if self.mode in ['snip', 'magnitude', 'rigl'] and self.mask_dict:
                 apply_mask(self.model, self.mask_dict)
