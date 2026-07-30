@@ -16,10 +16,10 @@ def main():
     parser.add_argument('--colab', action='store_true', help='running in Google Colab')
     parser.add_argument('--kaggle', action='store_true', help='running in Kaggle')
     parser.add_argument('--epochs', type=int, default=20, help='number of epochs per experiment')
-    parser.add_argument('--batch_size', type=int, default=128, help='batch size for training')
+    parser.add_argument('--batch_size', type=int, default=64, help='batch size for training')
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
-    parser.add_argument('--data_dir', type=str, default='./data')
-    parser.add_argument('--output_dir', type=str, default='./results/tiny_imagenet_experiments')
+    parser.add_argument('--data_dir', type=str, default='/content/data')
+    parser.add_argument('--output_dir', type=str, default='/content/drive/MyDrive/hebbian_learning/results/tiny_imagenet_experiments')
     
     args = parser.parse_args()
     
@@ -29,9 +29,8 @@ def main():
     
     if is_colab:
         drive_path = '/content/drive/MyDrive/hebbian_learning'
-        if args.data_dir == './data':
-            args.data_dir = os.path.join(drive_path, 'data')
-        args.output_dir = os.path.join(drive_path, 'results/tiny_imagenet_experiments')
+        if args.output_dir == './results':
+            args.output_dir = os.path.join(drive_path, 'results/tiny_imagenet_experiments')
     elif is_kaggle:
         if args.data_dir == './data':
             args.data_dir = '/tmp/data'
@@ -39,54 +38,115 @@ def main():
         
     python_cmd = sys.executable
     
-    # 1. Baseline Dense ResNet-18 on Tiny-ImageNet
+    # 1. Baseline Dense ResNet-18
+    print("--- Running DENSE ResNet-18 Baseline ---")
     run_cmd([
         python_cmd, 'scripts/main.py',
+        '--batch_size', str(args.batch_size),
+        '--epochs', str(args.epochs),
+        '--lr', str(args.lr),
         '--mode', 'baseline',
         '--arch', 'resnet18',
         '--dataset', 'TinyImageNet',
-        '--epochs', str(args.epochs),
-        '--batch_size', str(args.batch_size),
-        '--lr', str(args.lr),
         '--data_dir', args.data_dir,
-        '--output_dir', args.output_dir
+        '--output_dir', args.output_dir,
+        '--colab' if is_colab else '',
+        '--early_stopping', 'False',
+        '--resume_from', 'False'
     ])
     
-    # 2. DADP (Hebbian) Threshold Sweeps on Tiny-ImageNet
-    dadp_thresholds = [1e-5, 5e-5, 1e-4, 5e-4]
-    for thr in dadp_thresholds:
+    # 2. DADP (Hebbian) ResNet-18 Sweeps
+    print("\n--- Running DADP (Hebbian) ResNet-18 Sweeps ---")
+    hebbian_thresholds = ["1e-6", "5e-6", "1e-5", "5e-5", "1e-4"]
+    for thr in hebbian_thresholds:
+        print(f"\n--- Running DADP (Hebbian) ResNet-18 (Threshold: {thr}) ---")
         run_cmd([
             python_cmd, 'scripts/main.py',
+            '--batch_size', str(args.batch_size),
+            '--epochs', str(args.epochs),
+            '--lr', str(args.lr),
             '--mode', 'hebbian',
             '--arch', 'resnet18',
-            '--dataset', 'TinyImageNet',
-            '--prune_threshold', str(thr),
             '--prune_interval', '500',
-            '--epochs', str(args.epochs),
-            '--batch_size', str(args.batch_size),
-            '--lr', str(args.lr),
+            '--prune_threshold', thr,
+            '--dataset', 'TinyImageNet',
             '--data_dir', args.data_dir,
-            '--output_dir', args.output_dir
+            '--output_dir', args.output_dir,
+            '--colab' if is_colab else '',
+            '--early_stopping', 'False',
+            '--resume_from', 'False'
         ])
         
-    # 3. Standard Pruning Baselines (Magnitude, SNIP, RigL) at ~90% and ~95% Sparsity
-    baseline_methods = ['magnitude', 'snip', 'rigl']
-    sparsities = [0.90, 0.95]
-    
-    for mode in baseline_methods:
-        for sp in sparsities:
-            run_cmd([
-                python_cmd, 'scripts/main.py',
-                '--mode', mode,
-                '--arch', 'resnet18',
-                '--dataset', 'TinyImageNet',
-                '--sparsity', str(sp),
-                '--epochs', str(args.epochs),
-                '--batch_size', str(args.batch_size),
-                '--lr', str(args.lr),
-                '--data_dir', args.data_dir,
-                '--output_dir', args.output_dir
-            ])
+    # 3. SNIP ResNet-18 Sweeps
+    print("\n--- Running SNIP ResNet-18 Sweeps ---")
+    snip_sparsities = ["0.70", "0.80", "0.90", "0.95"]
+    for sp in snip_sparsities:
+        print(f"\n--- Running SNIP ResNet-18 (Sparsity: {sp}) ---")
+        run_cmd([
+            python_cmd, 'scripts/main.py',
+            '--batch_size', str(args.batch_size),
+            '--epochs', str(args.epochs),
+            '--lr', str(args.lr),
+            '--mode', 'snip',
+            '--arch', 'resnet18',
+            '--prune_interval', '0',
+            '--prune_threshold', '0.0',
+            '--sparsity', sp,
+            '--dataset', 'TinyImageNet',
+            '--data_dir', args.data_dir,
+            '--output_dir', args.output_dir,
+            '--colab' if is_colab else '',
+            '--early_stopping', 'False',
+            '--resume_from', 'False'
+        ])
+        
+    # 4. MAGNITUDE ResNet-18 Sweeps
+    print("\n--- Running MAGNITUDE ResNet-18 Sweeps ---")
+    magnitude_sparsities = ["0.70", "0.80", "0.90", "0.95"]
+    for sp in magnitude_sparsities:
+        print(f"\n--- Running MAGNITUDE ResNet-18 (Sparsity: {sp}) ---")
+        run_cmd([
+            python_cmd, 'scripts/main.py',
+            '--batch_size', str(args.batch_size),
+            '--epochs', str(args.epochs),
+            '--lr', str(args.lr),
+            '--mode', 'magnitude',
+            '--arch', 'resnet18',
+            '--prune_interval', '0',
+            '--prune_threshold', '0.0',
+            '--sparsity', sp,
+            '--dataset', 'TinyImageNet',
+            '--data_dir', args.data_dir,
+            '--output_dir', args.output_dir,
+            '--colab' if is_colab else '',
+            '--early_stopping', 'False',
+            '--resume_from', 'False'
+        ])
+        
+    # 5. RIGL ResNet-18 Sweeps
+    print("\n--- Running RIGL ResNet-18 Sweeps ---")
+    rigl_sparsities = ["0.70", "0.80", "0.90", "0.95"]
+    for sp in rigl_sparsities:
+        print(f"\n--- Running RIGL ResNet-18 (Sparsity: {sp}) ---")
+        run_cmd([
+            python_cmd, 'scripts/main.py',
+            '--batch_size', str(args.batch_size),
+            '--epochs', str(args.epochs),
+            '--lr', str(args.lr),
+            '--mode', 'rigl',
+            '--arch', 'resnet18',
+            '--prune_interval', '0',
+            '--prune_threshold', '0.0',
+            '--sparsity', sp,
+            '--rigl_interval', '100',
+            '--rigl_prune_fraction', '0.2',
+            '--dataset', 'TinyImageNet',
+            '--data_dir', args.data_dir,
+            '--output_dir', args.output_dir,
+            '--colab' if is_colab else '',
+            '--early_stopping', 'False',
+            '--resume_from', 'False'
+        ])
             
     print("\n✅ ResNet-18 Tiny-ImageNet Benchmark Suite execution complete!")
 

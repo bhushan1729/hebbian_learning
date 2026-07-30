@@ -164,32 +164,55 @@ def setup_tiny_imagenet_val(val_dir):
 
 def download_tiny_imagenet(data_dir):
     """
-    Downloads and extracts Tiny-ImageNet-200 if not locally available.
+    Downloads and extracts Tiny-ImageNet-200. If running in Google Colab,
+    caches the unzipped dataset permanently on Google Drive so future sessions
+    load instantly without re-downloading.
     """
     import zipfile
     import urllib.request
-    tiny_dir = os.path.join(data_dir, 'tiny-imagenet-200')
-    if os.path.exists(tiny_dir):
-        setup_tiny_imagenet_val(os.path.join(tiny_dir, 'val'))
-        return tiny_dir
-        
-    os.makedirs(data_dir, exist_ok=True)
-    zip_path = os.path.join(data_dir, 'tiny-imagenet-200.zip')
+    
+    # 1. Check Google Drive cache path if in Colab
+    drive_cache_root = "/content/drive/MyDrive/hebbian_learning/data"
+    is_colab = os.path.exists("/content/drive/MyDrive")
+    
+    if is_colab:
+        os.makedirs(drive_cache_root, exist_ok=True)
+        drive_tiny_dir = os.path.join(drive_cache_root, 'tiny-imagenet-200')
+        if os.path.exists(drive_tiny_dir):
+            print(f"Found cached Tiny-ImageNet dataset on Google Drive: {drive_tiny_dir}")
+            setup_tiny_imagenet_val(os.path.join(drive_tiny_dir, 'val'))
+            return drive_tiny_dir
+
+    # 2. Check local data_dir
+    local_tiny_dir = os.path.join(data_dir, 'tiny-imagenet-200')
+    if os.path.exists(local_tiny_dir):
+        setup_tiny_imagenet_val(os.path.join(local_tiny_dir, 'val'))
+        return local_tiny_dir
+
+    # 3. Determine target download directory (prefer Drive in Colab for persistence)
+    target_data_dir = drive_cache_root if is_colab else data_dir
+    os.makedirs(target_data_dir, exist_ok=True)
+    
+    target_tiny_dir = os.path.join(target_data_dir, 'tiny-imagenet-200')
+    zip_path = os.path.join(target_data_dir, 'tiny-imagenet-200.zip')
     url = "http://cs231n.stanford.edu/tiny-imagenet-200.zip"
+    
     print(f"Downloading Tiny-ImageNet-200 dataset from {url}...")
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=120) as resp, open(zip_path, 'wb') as out_file:
             out_file.write(resp.read())
-        print("Extracting tiny-imagenet-200.zip...")
+        print(f"Extracting tiny-imagenet-200.zip to {target_data_dir}...")
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(data_dir)
+            zip_ref.extractall(target_data_dir)
         if os.path.exists(zip_path):
             os.remove(zip_path)
-        setup_tiny_imagenet_val(os.path.join(tiny_dir, 'val'))
+        setup_tiny_imagenet_val(os.path.join(target_tiny_dir, 'val'))
+        print(f"Tiny-ImageNet dataset successfully saved to: {target_tiny_dir}")
+        return target_tiny_dir
     except Exception as e:
         print(f"Could not download Tiny-ImageNet automatically: {e}")
-    return tiny_dir
+        return target_tiny_dir
 
 def get_data_loaders(dataset_name='MNIST', batch_size=64, data_dir='./data', transformer_model='prajjwal1/bert-mini'):
     """
