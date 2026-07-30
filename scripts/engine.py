@@ -27,7 +27,7 @@ class Trainer:
         # AMP GradScaler: activates T4 Tensor Cores for float16 operations
         # Falls back gracefully to float32 on CPU or unsupported GPUs
         self.use_amp = device.type == 'cuda'
-        self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
+        self.scaler = torch.amp.GradScaler('cuda', enabled=self.use_amp)
         
         # cuDNN auto-tuner: finds fastest conv algorithm for fixed input sizes (64x64 Tiny ImageNet)
         if self.use_amp:
@@ -100,6 +100,11 @@ class Trainer:
         def backward_hook_fn(module, grad_input, grad_output):
             x = module._current_input
             dy = grad_output[0].detach()
+            
+            # AMP runs forward/backward in float16; cast to float32 for importance accumulation
+            # to avoid dtype mismatch in conv2d_weight (float32 input vs float16 weight)
+            x = x.float()
+            dy = dy.float()
             
             if isinstance(module, nn.Conv2d):
                 batch_importance = torch.nn.grad.conv2d_weight(
@@ -183,7 +188,7 @@ class Trainer:
             self.optimizer.zero_grad(set_to_none=True)
             
             # AMP autocast: uses float16 on GPU Tensor Cores (T4/V100/A100), float32 on CPU
-            with torch.cuda.amp.autocast(enabled=self.use_amp):
+            with torch.amp.autocast('cuda', enabled=self.use_amp):
                 if self.is_ner:
                     loss = self.model(data, target, lengths=lengths)
                 else:
