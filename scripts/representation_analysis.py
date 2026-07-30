@@ -248,7 +248,7 @@ def plot_dadp_vs_baseline(
 def main():
     parser = argparse.ArgumentParser(description='DADP Representation Analysis (Dataset Entropy & Effective Rank)')
     parser.add_argument('--arch', type=str, default='vgg16', choices=['vgg16', 'resnet18', 'bert'])
-    parser.add_argument('--dataset', type=str, default='CIFAR10', choices=['MNIST', 'CIFAR10', 'SST2', 'IMDB'])
+    parser.add_argument('--dataset', type=str, default='CIFAR10', choices=['MNIST', 'CIFAR10', 'TinyImageNet', 'Tiny-ImageNet', 'SST2', 'IMDB'])
     parser.add_argument('--baseline_model', type=str, required=True, help='Path to baseline dense model checkpoint (.pth)')
     parser.add_argument('--pruned_models', '--dadp_models', dest='pruned_models', type=str, nargs='+', required=True, help='Paths to pruned model checkpoints (.pth) for comparison (DADP, Magnitude, SNIP, RigL, etc.)')
     parser.add_argument('--labels', type=str, nargs='+', help='Custom labels for each model (e.g. "DADP (Hebbian)" "Magnitude" "SNIP" "RigL")')
@@ -273,15 +273,16 @@ def main():
     # 1. Load Data
     _, test_loader = get_data_loaders(args.dataset, args.batch_size, args.data_dir, args.transformer_model)
     
+    num_classes = 200 if args.dataset in ['TinyImageNet', 'Tiny-ImageNet', 'tiny_imagenet'] else (10 if args.dataset in ['CIFAR10', 'MNIST'] else 2)
+    
     # 2. Instantiate and load Baseline model
     print(f"Loading Baseline model ({args.arch})...")
     if args.arch == 'vgg16':
-        baseline_model = BaselineVGG16(input_channels=3 if args.dataset == 'CIFAR10' else 1, num_classes=10)
+        baseline_model = BaselineVGG16(input_channels=3 if args.dataset in ['CIFAR10', 'TinyImageNet', 'Tiny-ImageNet'] else 1, num_classes=num_classes)
     elif args.arch == 'resnet18':
-        baseline_model = get_resnet18(num_classes=10, masked=False)
+        baseline_model = get_resnet18(num_classes=num_classes, masked=False)
     elif args.arch == 'bert':
         from transformers import AutoModelForSequenceClassification, BertForSequenceClassification
-        num_classes = 2
         if "bert-mini" in args.transformer_model or "bert-tiny" in args.transformer_model:
             baseline_model = BertForSequenceClassification.from_pretrained(args.transformer_model, num_labels=num_classes)
         else:

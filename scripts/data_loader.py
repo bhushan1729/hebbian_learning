@@ -131,9 +131,69 @@ def collate_fn_ner(batch):
         padded_labels[i, :length] = lbl
     return padded_sentences, padded_labels, lengths
 
+def setup_tiny_imagenet_val(val_dir):
+    """
+    Reorganizes Tiny-ImageNet validation directory into class subfolders
+    matching ImageFolder structure if not already reorganized.
+    """
+    images_dir = os.path.join(val_dir, 'images')
+    anno_file = os.path.join(val_dir, 'val_annotations.txt')
+    if not os.path.exists(anno_file) or not os.path.exists(images_dir):
+        return
+        
+    val_img_dict = {}
+    with open(anno_file, 'r') as f:
+        for line in f:
+            words = line.strip().split('\t')
+            if len(words) >= 2:
+                val_img_dict[words[0]] = words[1]
+            
+    for img_name, class_id in val_img_dict.items():
+        class_dir = os.path.join(val_dir, class_id)
+        os.makedirs(class_dir, exist_ok=True)
+        old_path = os.path.join(images_dir, img_name)
+        new_path = os.path.join(class_dir, img_name)
+        if os.path.exists(old_path) and not os.path.exists(new_path):
+            os.rename(old_path, new_path)
+            
+    if os.path.exists(images_dir) and not os.listdir(images_dir):
+        try:
+            os.rmdir(images_dir)
+        except Exception:
+            pass
+
+def download_tiny_imagenet(data_dir):
+    """
+    Downloads and extracts Tiny-ImageNet-200 if not locally available.
+    """
+    import zipfile
+    import urllib.request
+    tiny_dir = os.path.join(data_dir, 'tiny-imagenet-200')
+    if os.path.exists(tiny_dir):
+        setup_tiny_imagenet_val(os.path.join(tiny_dir, 'val'))
+        return tiny_dir
+        
+    os.makedirs(data_dir, exist_ok=True)
+    zip_path = os.path.join(data_dir, 'tiny-imagenet-200.zip')
+    url = "http://cs231n.stanford.edu/tiny-imagenet-200.zip"
+    print(f"Downloading Tiny-ImageNet-200 dataset from {url}...")
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=120) as resp, open(zip_path, 'wb') as out_file:
+            out_file.write(resp.read())
+        print("Extracting tiny-imagenet-200.zip...")
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(data_dir)
+        if os.path.exists(zip_path):
+            os.remove(zip_path)
+        setup_tiny_imagenet_val(os.path.join(tiny_dir, 'val'))
+    except Exception as e:
+        print(f"Could not download Tiny-ImageNet automatically: {e}")
+    return tiny_dir
+
 def get_data_loaders(dataset_name='MNIST', batch_size=64, data_dir='./data', transformer_model='prajjwal1/bert-mini'):
     """
-    Get data loaders for MNIST, CIFAR10, SST2, IMDB, and CoNLL2003.
+    Get data loaders for MNIST, CIFAR10, TinyImageNet, SST2, IMDB, and CoNLL2003.
     """
     if not os.path.exists(data_dir):
         os.makedirs(data_dir)
@@ -180,6 +240,36 @@ def get_data_loaders(dataset_name='MNIST', batch_size=64, data_dir='./data', tra
             print("Torchvision not installed. Falling back to synthetic CIFAR10.")
             train_dataset = SyntheticImageDataset(3, 32, 32, 128, 10)
             test_dataset = SyntheticImageDataset(3, 32, 32, 64, 10)
+            
+    elif dataset_name in ['TinyImageNet', 'Tiny-ImageNet', 'tiny_imagenet']:
+        if HAS_TORCHVISION:
+            try:
+                tiny_dir = download_tiny_imagenet(data_dir)
+                train_dir = os.path.join(tiny_dir, 'train')
+                val_dir = os.path.join(tiny_dir, 'val')
+                
+                train_transform = transforms.Compose([
+                    transforms.RandomCrop(64, padding=4),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.4802, 0.4481, 0.3975), (0.2302, 0.2265, 0.2262))
+                ])
+                test_transform = transforms.Compose([
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.4802, 0.4481, 0.3975), (0.2302, 0.2265, 0.2262))
+                ])
+                
+                train_dataset = datasets.ImageFolder(train_dir, transform=train_transform)
+                test_dataset = datasets.ImageFolder(val_dir, transform=test_transform)
+                print(f"Successfully loaded Tiny-ImageNet dataset. Train samples: {len(train_dataset)}, Test samples: {len(test_dataset)}")
+            except Exception as e:
+                print(f"Failed to load Tiny-ImageNet: {e}. Falling back to synthetic Tiny-ImageNet.")
+                train_dataset = SyntheticImageDataset(3, 64, 64, 256, 200)
+                test_dataset = SyntheticImageDataset(3, 64, 64, 128, 200)
+        else:
+            print("Torchvision not installed. Falling back to synthetic Tiny-ImageNet.")
+            train_dataset = SyntheticImageDataset(3, 64, 64, 256, 200)
+            test_dataset = SyntheticImageDataset(3, 64, 64, 128, 200)
         
     elif dataset_name in ['SST2', 'IMDB']:
         try:

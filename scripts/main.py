@@ -51,7 +51,7 @@ def main():
     parser.add_argument('--sparsity', type=float, default=0.9, help='target sparsity for snip/magnitude/rigl')
     parser.add_argument('--rigl_prune_fraction', type=float, default=0.2, help='fraction of weights to prune/regrow in RigL step')
     parser.add_argument('--rigl_interval', type=int, default=100, help='RigL step interval')
-    parser.add_argument('--dataset', type=str, default='MNIST', choices=['MNIST', 'CIFAR10', 'CoNLL2003', 'SST2', 'IMDB'], help='Dataset to use')
+    parser.add_argument('--dataset', type=str, default='MNIST', choices=['MNIST', 'CIFAR10', 'TinyImageNet', 'Tiny-ImageNet', 'CoNLL2003', 'SST2', 'IMDB'], help='Dataset to use')
     parser.add_argument('--data_dir', type=str, default='./data', help='Directory for datasets')
     parser.add_argument('--output_dir', type=str, default='./results', help='Directory for results')
     parser.add_argument('--exp_name', type=str, default=None, help='Custom name for this experiment run')
@@ -125,6 +125,11 @@ def main():
         input_channels = 3
         input_size = 3072
         fc_input_dim = 4096
+    elif args.dataset in ['TinyImageNet', 'Tiny-ImageNet', 'tiny_imagenet']:
+        num_classes = 200
+        input_channels = 3
+        input_size = 12288
+        fc_input_dim = 8192
     elif args.dataset == 'CoNLL2003':
         num_classes = 9 # standard NER classes
     elif args.dataset in ['SST2', 'IMDB']:
