@@ -303,6 +303,7 @@ class Trainer:
             self.epoch = epoch + 1
             start_time = time.time()
             
+            print(f"Epoch {self.epoch}/{num_epochs} [Training] ", end="", flush=True)
             train_loss, train_acc = self.train_epoch()
             test_loss, test_acc = self.evaluate()
             
