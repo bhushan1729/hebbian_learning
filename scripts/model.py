@@ -217,7 +217,7 @@ class BaselineVGG16(nn.Module):
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             else:
                 conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1)
-                layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU(inplace=False)]
+                layers += [conv2d, nn.ReLU(inplace=False)]
                 in_channels = v
         return nn.Sequential(*layers)
 
@@ -252,7 +252,7 @@ class HebbianVGG16(nn.Module):
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             else:
                 conv2d = MaskedConv2d(in_channels, v, kernel_size=3, padding=1)
-                layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU(inplace=False)]
+                layers += [conv2d, nn.ReLU(inplace=False)]
                 in_channels = v
         return nn.Sequential(*layers)
 
@@ -294,9 +294,9 @@ class NativeResNet18(nn.Module):
     def __init__(self, num_classes=10):
         super(NativeResNet18, self).__init__()
         self.in_planes = 64
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
-        self.maxpool = nn.Identity()
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(BasicBlock, 64, 2, stride=1)
         self.layer2 = self._make_layer(BasicBlock, 128, 2, stride=2)
         self.layer3 = self._make_layer(BasicBlock, 256, 2, stride=2)
@@ -323,13 +323,10 @@ class NativeResNet18(nn.Module):
         out = self.fc(out)
         return out
 
-def get_resnet18(num_classes=10, masked=False, is_cifar_or_tiny=True):
+def get_resnet18(num_classes=10, masked=False):
     try:
         import torchvision.models as models
         model = models.resnet18(num_classes=num_classes)
-        if is_cifar_or_tiny or num_classes in [10, 100, 200]:
-            model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
-            model.maxpool = nn.Identity()
     except Exception:
         model = NativeResNet18(num_classes=num_classes)
         
