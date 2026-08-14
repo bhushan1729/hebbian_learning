@@ -71,6 +71,7 @@ def main():
     parser.add_argument('--dataset', type=str, default='MNIST', choices=['MNIST', 'CIFAR10'])
     parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--prune_interval', type=int, default=500, help='pruning step interval')
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--thresholds', type=float, nargs='+', default=[1e-5, 5e-5, 1e-4], 
                         help='Space-separated list of DADP thresholds to sweep')
@@ -217,7 +218,7 @@ def main():
                     device=device,
                     mode='hebbian',
                     lr=args.lr,
-                    prune_interval=500,
+                    prune_interval=args.prune_interval,
                     prune_threshold=thr,
                     output_dir=args.output_dir,
                     base_name=f"sweep_runA_{args.arch}_thr{thr}_seed{seed}"
