@@ -33,6 +33,13 @@ class MaskedLinear(nn.Linear):
             return
         with torch.no_grad():
             new_mask = (importance > threshold).float()
+            candidate_mask = self.mask.data * new_mask
+            if candidate_mask.sum() == 0 and self.mask.sum() > 0:
+                k = max(1, int(0.001 * self.mask.numel()))
+                flat_imp = (importance * self.mask.data).view(-1)
+                topk_indices = torch.topk(flat_imp, k=k).indices
+                new_mask = torch.zeros_like(importance)
+                new_mask.view(-1)[topk_indices] = 1.0
             self.mask.data *= new_mask
             self.weight.data *= self.mask.data
 
@@ -52,6 +59,13 @@ class MaskedConv2d(nn.Conv2d):
             return
         with torch.no_grad():
             new_mask = (importance > threshold).float()
+            candidate_mask = self.mask.data * new_mask
+            if candidate_mask.sum() == 0 and self.mask.sum() > 0:
+                k = max(1, int(0.001 * self.mask.numel()))
+                flat_imp = (importance * self.mask.data).view(-1)
+                topk_indices = torch.topk(flat_imp, k=k).indices
+                new_mask = torch.zeros_like(importance)
+                new_mask.view(-1)[topk_indices] = 1.0
             self.mask.data *= new_mask
             self.weight.data *= self.mask.data
 
