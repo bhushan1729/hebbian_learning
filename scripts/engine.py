@@ -105,6 +105,10 @@ class Trainer:
             # to avoid dtype mismatch in conv2d_weight (float32 input vs float16 weight)
             x = x.float()
             dy = dy.float()
+            if self.use_amp:
+                scale = self.scaler.get_scale()
+                if scale > 0:
+                    dy = dy / scale
             
             if isinstance(module, nn.Conv2d):
                 batch_importance = torch.nn.grad.conv2d_weight(
