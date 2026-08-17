@@ -67,6 +67,7 @@ def main():
     parser.add_argument('--kaggle', action='store_true')
     parser.add_argument('--save_model', type=str2bool, default=False, help='save heavy model checkpoints (.pth) (default: False)')
     parser.add_argument('--use_amp', type=str2bool, default=False, help='use AMP FP16 on GPU (default: False for exact FP32)')
+    parser.add_argument('--transformer_model', type=str, default='prajjwal1/bert-mini', help='pre-trained HuggingFace transformer model')
 
     args = parser.parse_args()
 
@@ -94,13 +95,13 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
-    print(f"Arch: {args.arch} | Dataset: {args.dataset}")
+    print(f"Arch: {args.arch} ({args.transformer_model if args.arch == 'bert' else ''}) | Dataset: {args.dataset}")
     print(f"Sweeping thresholds: {args.thresholds}")
     print(f"Seeds: {args.seeds}")
     print(f"Save models (.pth): {args.save_model}\n")
 
     # Load Data once
-    train_loader, test_loader = get_data_loaders(args.dataset, args.batch_size, args.data_dir)
+    train_loader, test_loader = get_data_loaders(args.dataset, args.batch_size, args.data_dir, args.transformer_model)
 
     num_classes = 10
     input_channels = 1
@@ -123,7 +124,6 @@ def main():
         num_classes = 2
 
     # Container for all statistical results
-    # thr -> { 'final_sparsity': [], 'final_acc': [], 'peak_acc': [] }
     stats_data = {}
 
     for thr_str in args.thresholds:
@@ -143,7 +143,6 @@ def main():
             set_seed(seed)
 
             base_name = f"hebbian_{args.arch}_{args.dataset}_thr{thr_str}_seed{seed}"
-            history_path = os.path.join(results_dir, f"history_{base_name}.json")
 
             # Instantiate model
             if args.arch == 'bilstm_crf':
@@ -151,8 +150,11 @@ def main():
                 tag_to_ix = getattr(train_loader, 'tag_to_ix', None)
                 model = BiLSTM_CRF(vocab_size=vocab_size, tag_to_ix=tag_to_ix, embedding_dim=128, hidden_dim=128, masked=True)
             elif args.arch == 'bert':
-                from transformers import BertForSequenceClassification
-                model = BertForSequenceClassification.from_pretrained('prajjwal1/bert-mini', num_labels=num_classes)
+                from transformers import AutoModelForSequenceClassification, BertForSequenceClassification
+                if "bert-mini" in args.transformer_model or "bert-tiny" in args.transformer_model:
+                    model = BertForSequenceClassification.from_pretrained(args.transformer_model, num_labels=num_classes)
+                else:
+                    model = AutoModelForSequenceClassification.from_pretrained(args.transformer_model, num_labels=num_classes)
                 model = convert_to_masked_model(model)
             else:
                 raw_model = get_architecture(args.arch, num_classes, input_channels, input_size, fc_input_dim)
