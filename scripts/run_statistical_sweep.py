@@ -65,6 +65,9 @@ def main():
     parser.add_argument('--output_dir', type=str, default='./results/statistical_sweeps')
     parser.add_argument('--colab', action='store_true')
     parser.add_argument('--kaggle', action='store_true')
+    parser.add_argument('--mode', type=str, default='hebbian', choices=['hebbian', 'snip', 'magnitude', 'rigl', 'baseline'], help='Pruning mode (default: hebbian)')
+    parser.add_argument('--early_stopping', type=str2bool, default=False, help='enable early stopping (True or False)')
+    parser.add_argument('--resume_from', type=str2bool, default=False, help='resume from checkpoint if exists (True or False)')
     parser.add_argument('--save_model', type=str2bool, default=False, help='save heavy model checkpoints (.pth) (default: False)')
     parser.add_argument('--use_amp', type=str2bool, default=False, help='use AMP FP16 on GPU (default: False for exact FP32)')
     parser.add_argument('--transformer_model', type=str, default='prajjwal1/bert-mini', help='pre-trained HuggingFace transformer model')
@@ -169,14 +172,14 @@ def main():
                 train_loader=train_loader,
                 test_loader=test_loader,
                 device=device,
-                mode='hebbian',
+                mode=args.mode,
                 lr=args.lr,
                 prune_interval=args.prune_interval,
                 prune_threshold=thr,
                 output_dir=args.output_dir,
                 base_name=base_name,
                 config=config_dict,
-                early_stopping=False,
+                early_stopping=args.early_stopping,
                 use_amp=args.use_amp,
                 save_model=args.save_model
             )
