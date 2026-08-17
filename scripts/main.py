@@ -59,6 +59,7 @@ def main():
     parser.add_argument('--transformer_model', type=str, default='prajjwal1/bert-mini', help='pre-trained HuggingFace transformer model to use')
     parser.add_argument('--early_stopping', type=str2bool, default=False, help='enable early stopping (True or False)')
     parser.add_argument('--resume_from', type=str2bool, default=False, help='resume from checkpoint if exists (True or False)')
+    parser.add_argument('--use_amp', type=str2bool, default=False, help='enable Automatic Mixed Precision FP16 on GPU (True or False, default: False for FP32 precision)')
     
     args = parser.parse_args()
 
@@ -186,7 +187,8 @@ def main():
         output_dir=args.output_dir,
         base_name=base_name,
         config=config_dict,
-        early_stopping=args.early_stopping
+        early_stopping=args.early_stopping,
+        use_amp=args.use_amp
     )
 
     # Auto-resume if checkpoint exists and requested, else clean start

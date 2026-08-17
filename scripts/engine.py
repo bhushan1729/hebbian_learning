@@ -15,7 +15,7 @@ class Trainer:
     def __init__(self, model, train_loader, test_loader, device, mode='hebbian', lr=0.01, 
                  prune_interval=100, prune_threshold=0.01, sparsity=0.9, rigl_prune_fraction=0.2, 
                  rigl_interval=100, output_dir='./results', base_name='experiment', config=None,
-                 early_stopping=False):
+                 early_stopping=False, use_amp=False):
         self.model = model.to(device)
         self.train_loader = train_loader
         self.test_loader = test_loader
@@ -25,8 +25,8 @@ class Trainer:
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
         
         # AMP GradScaler: activates T4 Tensor Cores for float16 operations
-        # Falls back gracefully to float32 on CPU or unsupported GPUs
-        self.use_amp = device.type == 'cuda'
+        # Defaults to False (FP32 precision) to guarantee exact gradient importance scores
+        self.use_amp = use_amp and (device.type == 'cuda')
         self.scaler = torch.amp.GradScaler('cuda', enabled=self.use_amp)
         
         # cuDNN auto-tuner: finds fastest conv algorithm for fixed input sizes (64x64 Tiny ImageNet)

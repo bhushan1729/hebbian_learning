@@ -82,6 +82,7 @@ def main():
     parser.add_argument('--colab', action='store_true')
     parser.add_argument('--kaggle', action='store_true', help='running in Kaggle environment')
     parser.add_argument('--resume_from', type=str2bool, default=False, help='resume from checkpoint if exists (True or False)')
+    parser.add_argument('--use_amp', type=str2bool, default=False, help='enable Automatic Mixed Precision FP16 on GPU (True or False, default: False for FP32 precision)')
     
     args = parser.parse_args()
 
@@ -221,7 +222,8 @@ def main():
                     prune_interval=args.prune_interval,
                     prune_threshold=thr,
                     output_dir=args.output_dir,
-                    base_name=f"sweep_runA_{args.arch}_thr{thr}_seed{seed}"
+                    base_name=f"sweep_runA_{args.arch}_thr{thr}_seed{seed}",
+                    use_amp=args.use_amp
                 )
                 history_a = trainer_a.run(args.epochs)
                 sparsity = get_model_sparsity(model_a)
@@ -280,7 +282,8 @@ def main():
                     prune_interval=0,
                     prune_threshold=0.0,
                     output_dir=args.output_dir,
-                    base_name=f"sweep_runB_{args.arch}_thr{thr}_seed{seed}"
+                    base_name=f"sweep_runB_{args.arch}_thr{thr}_seed{seed}",
+                    use_amp=args.use_amp
                 )
                 history_b = trainer_b.run(args.epochs)
                 acc_b = history_b['test_acc'][-1]
@@ -330,7 +333,8 @@ def main():
                     prune_interval=0,
                     prune_threshold=0.0,
                     output_dir=args.output_dir,
-                    base_name=f"sweep_runC_{args.arch}_thr{thr}_seed{seed}"
+                    base_name=f"sweep_runC_{args.arch}_thr{thr}_seed{seed}",
+                    use_amp=args.use_amp
                 )
                 history_c = trainer_c.run(args.epochs)
                 acc_c = history_c['test_acc'][-1]
