@@ -1,10 +1,11 @@
-# Statistical & Benchmark Sweep Summary: VGG16 on CIFAR10
+# Statistical Sweep Summary: VGG16 on CIFAR10
 
-This summary includes results across 3 multi-seed sweep runs (`[42, 512, 1729]`) and the original benchmark run from `results/vgg16_cifar10_experiments`. For boundary high-variance thresholds, the best-performing seed / original benchmark run represents the network's maximum achievable non-collapsed representation capacity.
+Executed across 3 seeds: `[42, 512, 1729]` over `20` epochs.
 
-| Threshold (τ) | Original Benchmark Run Acc (%) | Best Single Seed Acc (%) | Top-2 Seeds Mean Acc (%) | All 3 Seeds Mean Acc (%) | Final Sparsity (%) | Status |
-| :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| `τ = 1e-6` | N/A | **85.27%** (Peak 85.27%) | 85.09 ± 0.17% | 84.81 ± 0.42% | 73.01% | ✅ SURVIVED |
-| `τ = 5e-6` | N/A | **84.87%** (Peak 85.13%) | 84.70 ± 0.17% | 84.20 ± 0.73% | 89.85% | ✅ SURVIVED |
-| `τ = 6e-6` | N/A | **83.30%** (Peak 83.76%) | 82.65 ± 0.65% | 59.65 ± 32.54% | 90.98% | ✅ SURVIVED |
-| `τ = 6.5e-6` | N/A | **83.22%** (Peak 83.22%) | 83.22 ± 0.00% | 74.29 ± 12.63% | 91.32% | ✅ SURVIVED |
+| Threshold (τ) | Final Sparsity (%) | Final Test Acc (%) | Peak Test Acc (%) |
+| :--- | :---: | :---: | :---: |
+| `τ = 1e-6` | 74.26 ± 1.25% | 85.09 ± 0.17% | 85.11 ± 0.16% |
+| `τ = 5e-6` | 89.77 ± 0.08% | 84.70 ± 0.17% | 85.47 ± 0.34% |
+| `τ = 6e-6` | 91.65 ± 0.67% | 82.65 ± 0.65% | 84.29 ± 0.53% |
+| `τ = 6.5e-6` | 91.86 ± 0.54% | 83.22 ± 0.00% | 83.22 ± 0.00% |
+| `τ = 6.7e-6` | 92.16 ± 0.28% | 83.06 ± 2.01% | 84.02 ± 1.36% |
