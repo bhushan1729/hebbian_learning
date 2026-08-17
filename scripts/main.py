@@ -60,6 +60,7 @@ def main():
     parser.add_argument('--early_stopping', type=str2bool, default=False, help='enable early stopping (True or False)')
     parser.add_argument('--resume_from', type=str2bool, default=False, help='resume from checkpoint if exists (True or False)')
     parser.add_argument('--use_amp', type=str2bool, default=False, help='enable Automatic Mixed Precision FP16 on GPU (True or False, default: False for FP32 precision)')
+    parser.add_argument('--save_model', type=str2bool, default=True, help='save model .pth checkpoints to disk (True or False)')
     
     args = parser.parse_args()
 
@@ -188,7 +189,8 @@ def main():
         base_name=base_name,
         config=config_dict,
         early_stopping=args.early_stopping,
-        use_amp=args.use_amp
+        use_amp=args.use_amp,
+        save_model=args.save_model
     )
 
     # Auto-resume if checkpoint exists and requested, else clean start

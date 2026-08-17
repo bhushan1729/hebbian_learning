@@ -15,7 +15,7 @@ class Trainer:
     def __init__(self, model, train_loader, test_loader, device, mode='hebbian', lr=0.01, 
                  prune_interval=100, prune_threshold=0.01, sparsity=0.9, rigl_prune_fraction=0.2, 
                  rigl_interval=100, output_dir='./results', base_name='experiment', config=None,
-                 early_stopping=False, use_amp=False):
+                 early_stopping=False, use_amp=False, save_model=True):
         self.model = model.to(device)
         self.train_loader = train_loader
         self.test_loader = test_loader
@@ -23,6 +23,7 @@ class Trainer:
         self.mode = mode
         self.lr = lr
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
+        self.save_model = save_model
         
         # AMP GradScaler: activates T4 Tensor Cores for float16 operations
         # Defaults to False (FP32 precision) to guarantee exact gradient importance scores
@@ -53,7 +54,8 @@ class Trainer:
         self.checkpoint_dir = os.path.join(output_dir, 'models')
         self.results_dir = os.path.join(output_dir, 'results')
         
-        os.makedirs(self.checkpoint_dir, exist_ok=True)
+        if self.save_model:
+            os.makedirs(self.checkpoint_dir, exist_ok=True)
         os.makedirs(self.results_dir, exist_ok=True)
         
         self.checkpoint_path = os.path.join(self.checkpoint_dir, f"{base_name}.pth")
@@ -140,6 +142,8 @@ class Trainer:
         self.hooks = []
 
     def save_checkpoint(self, is_best=False):
+        if not getattr(self, 'save_model', True):
+            return
         state = {
             'epoch': self.epoch,
             'step': self.step,
