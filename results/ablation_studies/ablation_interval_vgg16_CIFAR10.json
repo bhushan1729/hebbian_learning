@@ -1,0 +1,191 @@
+{
+    "100": {
+        "batches_per_epoch": 782,
+        "prune_frequency_per_epoch": 7.82,
+        "sparsity_mean": 93.29801676374535,
+        "sparsity_std": 0.18356986581508591,
+        "final_acc_mean": 84.81666666666666,
+        "final_acc_std": 0.19703355608175477,
+        "peak_acc_mean": 84.96333333333332,
+        "peak_acc_std": 0.27824849006279195,
+        "raw_seeds": {
+            "final_sparsity": [
+                93.15124169021892,
+                93.55684877143325,
+                93.18595982958388
+            ],
+            "final_acc": [
+                84.55,
+                84.88,
+                85.02
+            ],
+            "peak_acc": [
+                84.61,
+                84.99,
+                85.29
+            ]
+        }
+    },
+    "250": {
+        "batches_per_epoch": 782,
+        "prune_frequency_per_epoch": 3.128,
+        "sparsity_mean": 91.58088510629659,
+        "sparsity_std": 0.45672219102227296,
+        "final_acc_mean": 83.36,
+        "final_acc_std": 0.630925246496494,
+        "peak_acc_mean": 84.98,
+        "peak_acc_std": 0.5162040940041711,
+        "raw_seeds": {
+            "final_sparsity": [
+                90.93785039664375,
+                91.9550571028418,
+                91.84974781940426
+            ],
+            "final_acc": [
+                82.7,
+                83.17,
+                84.21
+            ],
+            "peak_acc": [
+                84.3,
+                85.09,
+                85.55
+            ]
+        }
+    },
+    "500": {
+        "batches_per_epoch": 782,
+        "prune_frequency_per_epoch": 1.564,
+        "sparsity_mean": 90.4236684752558,
+        "sparsity_std": 0.9289768719922372,
+        "final_acc_mean": 84.19666666666667,
+        "final_acc_std": 0.7252279335185314,
+        "peak_acc_mean": 84.71,
+        "peak_acc_std": 1.110075072536389,
+        "raw_seeds": {
+            "final_sparsity": [
+                89.68620602587738,
+                91.73399881573808,
+                89.8508005841519
+            ],
+            "final_acc": [
+                84.53,
+                83.19,
+                84.87
+            ],
+            "peak_acc": [
+                85.81,
+                83.19,
+                85.13
+            ]
+        }
+    },
+    "1000": {
+        "batches_per_epoch": 782,
+        "prune_frequency_per_epoch": 0.782,
+        "sparsity_mean": 89.61778681605726,
+        "sparsity_std": 0.7184287846671682,
+        "final_acc_mean": 84.02333333333333,
+        "final_acc_std": 2.1121289943772106,
+        "peak_acc_mean": 85.14333333333333,
+        "peak_acc_std": 0.5762136949276898,
+        "raw_seeds": {
+            "final_sparsity": [
+                88.9758260436833,
+                90.62076768098841,
+                89.25676672350004
+            ],
+            "final_acc": [
+                85.18,
+                81.06,
+                85.83
+            ],
+            "peak_acc": [
+                85.18,
+                84.42,
+                85.83
+            ]
+        }
+    },
+    "1500": {
+        "batches_per_epoch": 782,
+        "prune_frequency_per_epoch": 0.5213333333333333,
+        "sparsity_mean": 89.37226419399498,
+        "sparsity_std": 0.8028079862725122,
+        "final_acc_mean": 84.52666666666666,
+        "final_acc_std": 0.3522625283632754,
+        "peak_acc_mean": 85.06333333333333,
+        "peak_acc_std": 0.2572072229848065,
+        "raw_seeds": {
+            "final_sparsity": [
+                88.64850045984637,
+                90.49169179373685,
+                88.97660032840172
+            ],
+            "final_acc": [
+                84.34,
+                84.22,
+                85.02
+            ],
+            "peak_acc": [
+                84.7,
+                85.26,
+                85.23
+            ]
+        }
+    },
+    "2000": {
+        "batches_per_epoch": 782,
+        "prune_frequency_per_epoch": 0.391,
+        "sparsity_mean": 88.83910354802629,
+        "sparsity_std": 0.7514555959941114,
+        "final_acc_mean": 84.5,
+        "final_acc_std": 0.8713590916876187,
+        "peak_acc_mean": 85.21333333333332,
+        "peak_acc_std": 0.028674417556806355,
+        "raw_seeds": {
+            "final_sparsity": [
+                88.05241933790519,
+                89.8512139734507,
+                88.613677332723
+            ],
+            "final_acc": [
+                85.05,
+                83.27,
+                85.18
+            ],
+            "peak_acc": [
+                85.25,
+                85.21,
+                85.18
+            ]
+        }
+    },
+    "5000": {
+        "batches_per_epoch": 782,
+        "prune_frequency_per_epoch": 0.1564,
+        "sparsity_mean": 88.35050364377514,
+        "sparsity_std": 0.6398761278525164,
+        "final_acc_mean": 83.61666666666667,
+        "final_acc_std": 0.640954149859583,
+        "peak_acc_mean": 84.83,
+        "peak_acc_std": 0.4035674251803171,
+        "raw_seeds": {
+            "final_sparsity": [
+                87.58569625781634,
+                89.15179208854248,
+                88.3140225849666
+            ],
+            "final_acc": [
+                83.1,
+                84.52,
+                83.23
+            ],
+            "peak_acc": [
+                85.4,
+                84.52,
+                84.57
+            ]
+        }
+    }
+}
