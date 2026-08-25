@@ -34,12 +34,12 @@ def set_seed(seed):
     torch.backends.cudnn.deterministic = True
 
 def main():
-    parser = argparse.ArgumentParser(description='Prune Interval (Δt) Ablation Study Runner')
+    parser = argparse.ArgumentParser(description='Prune Interval (dt) Ablation Study Runner')
     parser.add_argument('--arch', type=str, default='resnet18', choices=['resnet18', 'vgg16', 'bert', 'mlp', 'bilstm_crf'])
     parser.add_argument('--dataset', type=str, default='CIFAR10', choices=['CIFAR10', 'MNIST', 'SST2', 'CoNLL2003', 'TinyImageNet'])
-    parser.add_argument('--threshold', type=float, default=1e-5, help='Fixed pruning threshold τ for ~90% target sparsity')
+    parser.add_argument('--threshold', type=float, default=1e-5, help='Fixed pruning threshold for approx 90 percent target sparsity')
     parser.add_argument('--intervals', type=int, nargs='+', default=[100, 250, 500, 1000, 1500, 2000, 5000],
-                        help='List of prune intervals Δt (in batches) to sweep')
+                        help='List of prune intervals dt (in batches) to sweep')
     parser.add_argument('--seeds', type=int, nargs='+', default=[42], help='Seeds to run for ablation')
     parser.add_argument('--epochs', type=int, default=20, help='epochs to train per run')
     parser.add_argument('--batch_size', type=int, default=64, help='batch size')
