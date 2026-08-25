@@ -1,0 +1,29 @@
+{
+    "100": {
+        "batches_per_epoch": 782,
+        "prune_frequency_per_epoch": 7.82,
+        "sparsity_mean": 84.48993283704642,
+        "sparsity_std": 0.1274749721498993,
+        "final_acc_mean": 66.19,
+        "final_acc_std": 0.6222539674441586,
+        "peak_acc_mean": 66.19,
+        "peak_acc_std": 0.6222539674441586,
+        "raw_seeds": {
+            "final_sparsity": [
+                84.62562584854751,
+                84.52487425743142,
+                84.31929840516031
+            ],
+            "final_acc": [
+                65.75,
+                67.07,
+                65.75
+            ],
+            "peak_acc": [
+                65.75,
+                67.07,
+                65.75
+            ]
+        }
+    }
+}
