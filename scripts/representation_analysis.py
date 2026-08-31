@@ -185,15 +185,14 @@ def plot_dadp_vs_baseline(
         print("⚠️ Warning: No matching layer names found between all compared models.")
         return
 
-    # Clean layer names for the x-axis ticks
-    clean_layer_names = ["_".join(k.split("_")[2:]) for k in layer_names]
+    # Numeric layer indices for x-axis ticks (1, 2, 3, ... L) to save space
+    layer_indices = [str(i + 1) for i in range(num_layers)]
     x_coords = np.arange(num_layers)
     
     base_norm_entropy = [baseline_metrics[l]["norm_entropy"] for l in layer_names]
     base_eff_rank = [baseline_metrics[l]["eff_rank"] for l in layer_names]
     
-    # Increase height slightly to accommodate the layer labels
-    fig, axes = plt.subplots(1, 2, figsize=(15, 7.0), dpi=150)
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.0), dpi=300)
     
     # Define color palette & marker styles
     colors = ['#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#bcbd22', '#17becf']
@@ -209,10 +208,10 @@ def plot_dadp_vs_baseline(
         axes[0].plot(x_coords, norm_entropy, f'{marker}--', label=label, color=color, linewidth=1.3, markersize=5)
         
     axes[0].set_title(f"{model_name}: Normalized Dataset Entropy ($S_1$) Across Layers", fontsize=11, fontweight='bold')
-    axes[0].set_xlabel("Layer Name", fontsize=10)
+    axes[0].set_xlabel(f"Layer Index (1 to {num_layers})", fontsize=11, fontweight='bold')
     axes[0].set_ylabel("Normalized Entropy $S_1(Z) / \\log_2(N)$", fontsize=10)
     axes[0].set_xticks(x_coords)
-    axes[0].set_xticklabels(clean_layer_names, rotation=90, fontsize=8, ha='center')
+    axes[0].set_xticklabels(layer_indices, rotation=0, fontsize=10, ha='center')
     axes[0].grid(True, linestyle='--', alpha=0.5)
     axes[0].legend(fontsize=9, frameon=True, loc='best')
     
@@ -226,10 +225,10 @@ def plot_dadp_vs_baseline(
         axes[1].plot(x_coords, eff_rank, f'{marker}--', label=label, color=color, linewidth=1.3, markersize=5)
         
     axes[1].set_title(f"{model_name}: Effective Rank ($\\exp(S_1)$) Across Layers", fontsize=11, fontweight='bold')
-    axes[1].set_xlabel("Layer Name", fontsize=10)
+    axes[1].set_xlabel(f"Layer Index (1 to {num_layers})", fontsize=11, fontweight='bold')
     axes[1].set_ylabel("Effective Rank", fontsize=10)
     axes[1].set_xticks(x_coords)
-    axes[1].set_xticklabels(clean_layer_names, rotation=90, fontsize=8, ha='center')
+    axes[1].set_xticklabels(layer_indices, rotation=0, fontsize=10, ha='center')
     axes[1].grid(True, linestyle='--', alpha=0.5)
     axes[1].legend(fontsize=9, frameon=True, loc='best')
     
