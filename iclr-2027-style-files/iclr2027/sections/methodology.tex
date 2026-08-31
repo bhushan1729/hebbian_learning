@@ -1,0 +1,58 @@
+\section{Methodology}
+
+In this section, we describe the formulation of \textbf{Dynamic Activity-Dependent Pruning (DADP)}, explain its biological intuition and mathematical basis, detail how unstructured pruning naturally causes structured neuron and channel death, and outline our experimental setup and evaluation metrics.
+
+\subsection{Synaptic Importance Metric \& Reverse Hebbian Intuition}
+
+DADP evaluates the structural utility of a connection (synapse) $w_{ij}^l$ connecting pre-synaptic neuron $i$ in layer $l-1$ to post-synaptic neuron $j$ in layer $l$ using an expected activation-derivative product:
+\begin{equation}
+I_{ij}^l = \mathbb{E} \left[ \left| a_i^{l-1} \cdot \frac{\partial \mathcal{L}}{\partial y_j^l} \right| \right]
+\end{equation}
+where $a_i^{l-1}$ is the pre-synaptic activation from layer $l-1$, $y_j^l$ is the pre-activation sum of neuron $j$ at layer $l$ before non-linear activation, $\mathcal{L}$ is the task loss, and $\mathbb{E}[\cdot]$ denotes the expectation over a temporal training window $\Delta T$.
+
+By the multivariable chain rule ($\frac{\partial \mathcal{L}}{\partial w_{ij}^l} = a_i^{l-1} \cdot \frac{\partial \mathcal{L}}{\partial y_j^l}$), importance metric $I_{ij}^l$ measures the expected weight gradient magnitude $\mathbb{E}\left[\left| \frac{\partial \mathcal{L}}{\partial w_{ij}^l} \right|\right]$ accumulated over a temporal window $\Delta T$ (e.g., $100$--$500$ steps) to filter single-batch noise. While classical Hebbian learning preserves co-activating connections (``neurons that fire together, wire together''), DADP implements a reverse principle, eliminating connections if either the pre-synaptic neuron is silent ($a_i^{l-1} \approx 0$) or the post-synaptic target is insensitive to error ($\frac{\partial \mathcal{L}}{\partial y_j^l} \approx 0$).
+
+\begin{theorem}[First-Order Taylor Loss Sensitivity]
+\label{thm:taylor}
+The activation-derivative metric $I_{ij}^l = \mathbb{E}[|a_i^{l-1} \cdot \frac{\partial \mathcal{L}}{\partial y_j^l}|]$ is equivalent to the magnitude of the first-order Taylor expansion of loss change $\Delta \mathcal{L}$ resulting from setting weight $w_{ij}^l$ to zero, normalized per unit weight magnitude. (Proof in Appendix~\ref{sec:appendix_proofs}).
+\end{theorem}
+
+\subsection{Dynamic Mask Updates, Self-Correction, \& Emergent Structured Death}
+
+DADP maintains a binary mask matrix $M^l \in \{0, 1\}^{|W^l|}$ for each layer $l$, initialized to all ones. The masked forward pass is given by $y^l = (W^l \odot M^l) a^{l-1} + b^l$. At step boundaries where $t \equiv 0 \pmod{\Delta T}$, masks are updated using a single global threshold $\tau$:
+\begin{equation}
+M_{ij}^l(t) = M_{ij}^l(t - \Delta T) \cdot \mathbb{I}\left( I_{ij}^l(t) \ge \tau \right)
+\end{equation}
+Pruning in DADP is permanent. Once a connection's importance score falls below $\tau$, its entry in the binary mask is set to zero ($M_{ij}^l = 0$) and it is permanently eliminated from the computation graph without regrowth.
+
+\begin{theorem}[Training-Driven Sparsity Equilibrium \& Capacity Boundary]
+\label{thm:equilibrium}
+Given a global threshold $\tau$, DADP importance scores $I_{ij}^l = \mathbb{E}[|a_i^{l-1} \cdot \frac{\partial \mathcal{L}_{\text{train}}}{\partial y_j^l}|]$ stabilize surviving pathways above $\tau$, causing the pruning rate to asymptote ($\Delta S \to 0$) into an organic training sparsity equilibrium $S^*(\tau) < 100\%$. However, because $I_{ij}^l$ is computed on training set loss sensitivity, setting $\tau$ near the critical capacity boundary $\tau_{\text{crit}}$ preserves high training accuracy while causing test loss to increase and test generalization to degrade. (Analysis in Appendix~\ref{sec:appendix_proofs}).
+\end{theorem}
+
+\subsubsection{Emergent Structured Death \& Physical Compression}
+
+While DADP prunes individual connections ($w_{ij}^l$), neuron and filter deletion emerge naturally during training. For a neuron to remain active, it must have at least one active incoming path ($\sum_i M_{ij}^l > 0$) and at least one active outgoing path ($\sum_k M_{jk}^{l+1} > 0$). If all incoming connections to neuron $j$ drop to zero, it receives no forward activation ($a_j^l = 0$). Conversely, if all outgoing connections are pruned to zero, no error gradient flows back to neuron $j$ during backpropagation. On the next pruning interval, importance scores for all its incoming connections collapse to zero ($I_{ij}^l = 0$), automatically pruning these orphaned connections. If a neuron loses its active incoming or outgoing path, it is dead and we remove such neurons.
+
+Similarly, when all connections in a convolutional filter drop to zero ($\sum_{j,h,w} M_{ijhw}^l = 0$), the filter is dead. We physically delete the dead filter slice $W^l \leftarrow W^l_{\setminus \mathcal{I}^l}$ alongside its Batch Normalization parameters ($\gamma^l, \beta^l, \mu^l, \sigma^{l, 2}$), and contract the corresponding input channels in the next layer ($W^{l+1} \leftarrow W^{l+1}_{:, \setminus \mathcal{I}^l}$).
+
+\subsection{Experimental Setup}
+
+We evaluate DADP across five architectures: Multi-Layer Perceptrons (\textbf{MLP}), \textbf{VGG-16}, \textbf{ResNet-18}, \textbf{BiLSTM-CRF}, and \textbf{MiniBERT} (\texttt{prajjwal1/bert-tiny}) on four benchmark datasets: \textbf{MNIST}, \textbf{CIFAR-10}, \textbf{CoNLL-2003}, and \textbf{SST-2}. Detailed layer specifications are provided in Appendix~\ref{sec:appendix_architectures}. We compare DADP against four primary baselines: \textbf{Dense Baseline}, \textbf{Magnitude Pruning} \citep{han2015learning}, \textbf{SNIP} \citep{lee2019snip}, and \textbf{RigL} \citep{evci2020rigging}. All models are trained using the Adam optimizer with a batch size of $64$ and learning rates of $\eta = 1\text{e-}3$ (MLP, VGG-16, ResNet-18, BiLSTM-CRF) and $\eta = 2\text{e-}5$ (MiniBERT). Models are trained for $20$ epochs ($10$ epochs for MiniBERT) using Cross-Entropy loss (or CRF loss for sequence labeling). For DADP, default pruning intervals are set to $\Delta T = 500$ steps across all architectures, with global absolute thresholds swept across $\tau \in [1\text{e-}6, 1\text{e-}3]$. DADP statistical sweeps are evaluated across $3$ random seeds ($42$, $512$, $1729$) to report mean $\pm$ standard deviation, whereas baseline methods are evaluated across a single seed ($42$) due to compute constraints. All experiments were executed on free NVIDIA T4 GPU instances on Google Colab and Kaggle platforms. Additionally, we conduct ablation studies evaluating sensitivity to weight initialization schemes (Kaiming, Xavier, Orthogonal) and pruning intervals ($\Delta T \in [100, 5000]$ steps).
+
+\subsection{Information-Theoretic Representation Metrics}
+
+Motivated by recent work on layer-wise representation quality analysis \citep{skean2025layer}, we evaluate internal feature quality without relying on output label projections. To the best of our knowledge, we are the first to perform layer-wise matrix-based entropy and effective rank analysis on dynamically pruned sparse networks.
+
+Specifically, for an intermediate layer activation matrix $Z \in \mathbb{R}^{N \times D}$, where $N$ denotes the batch size (number of samples) and $D$ is the feature dimension, we compute the centralized Gram Matrix $K = (Z - \bar{Z})(Z - \bar{Z})^\top \in \mathbb{R}^{N \times N}$, where $\bar{Z}$ is the mean activation matrix across the batch. The normalized eigenvalues $\{\lambda_i\}_{i=1}^N$ of $K$ form a probability distribution $p_i = \lambda_i / \sum_{j=1}^N \lambda_j$, representing the fraction of total feature variance captured along each principal component axis. We evaluate two core metrics:
+\begin{enumerate}
+    \item \textbf{Matrix-Based Normalized Shannon Entropy ($S_1$)}: Quantifies latent feature diversity and information compression across layer depths:
+    \begin{equation}
+    S_{\text{norm}}(Z) = -\frac{1}{\log_2(N)} \sum_{i=1}^N p_i \log_2(p_i + \epsilon)
+    \end{equation}
+    \item \textbf{Effective Rank ($\text{EffRank}$)}: Quantifies the effective geometric dimension of the feature space:
+    \begin{equation}
+    \text{EffRank}(Z) = \exp \left( -\sum_{i=1}^N p_i \ln(p_i + \epsilon) \right)
+    \end{equation}
+\end{enumerate}
+Here, $\log_2(N)$ normalizes the entropy metric between $0$ (complete collapse into a single dimension) and $1$ (maximum uniform feature spread), and $\epsilon > 0$ is a small constant preventing numerical instability.

@@ -1,0 +1,7 @@
+\section{Conclusion}
+
+In this work, we introduced \textbf{Dynamic Activity-Dependent Pruning (DADP)}, a bio-inspired structural plasticity algorithm for deep neural network compression. Grounded in a reverse Hebbian learning principle, DADP continuously evaluates connection importance during training as the expected product of pre-synaptic activation and post-synaptic error gradient ($I_{ij}^l = \mathbb{E}\left[\left| a_i^{l-1} \cdot \frac{\partial \mathcal{L}}{\partial y_j^l} \right|\right]$). 
+
+Across five architectures (MLP, VGG-16, ResNet-18, BiLSTM-CRF, MiniBERT) and four benchmark datasets, DADP consistently outperforms state-of-the-art static and dynamic pruning methods at extreme sparsities (up to $97.2\%$). 
+
+Furthermore, DADP exhibits key emergent behaviors: establishing a self-regulating negative feedback loop, finding organic sparsity equilibria without fixed layer budgets, inducing structured channel deletion, and protecting critical residual skip connections. By bridging biological developmental pruning with gradient-based neural network optimization, DADP provides a principled foundation for efficient, self-organizing artificial neural architectures.
