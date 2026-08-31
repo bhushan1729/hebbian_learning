@@ -89,41 +89,50 @@ for method, path in comparison_files.items():
         layer_data[method]['neurons_ratio'].append(active_n / total_n)
 
 # Plotting Subplots
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6.5), dpi=150)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5.2), dpi=300)
 
 for ax in [ax1, ax2]:
     ax.grid(True, linestyle='--', alpha=0.5)
 
+# Generate numeric layer indices for x-axis ticks
+sample_method = list(layer_data.keys())[0] if layer_data else None
+num_layers = len(layer_data[sample_method]['layers']) if sample_method and layer_data[sample_method]['layers'] else 13
+layer_indices = [str(i + 1) for i in range(num_layers)]
+x_coords = np.arange(num_layers)
+
 # Plot 1: Active Weights Ratio
-ax1.set_title('Layer-wise Capacity Distribution\nActive Weights to Total Weights Ratio (~95% Global Sparsity)', fontsize=11, fontweight='bold')
-ax1.set_ylabel('Active Weights Ratio', fontsize=10)
-ax1.set_xlabel('Network Layer Name', fontsize=10)
+ax1.set_title('(a) Active Weights Ratio (MiniBERT @ 95% Sparsity)', fontsize=11, fontweight='bold')
+ax1.set_ylabel('Active Weights Ratio', fontsize=10, fontweight='bold')
+ax1.set_xlabel(f'Layer Index (1 to {num_layers})', fontsize=10, fontweight='bold')
 
 for method, data in layer_data.items():
     if not data['layers']:
         continue
     lw = 2.0 if styles[method]['linestyle'] == '-' else 1.3
-    ax1.plot(data['layers'], data['weights_ratio'], 
+    ax1.plot(x_coords, data['weights_ratio'], 
              color=styles[method]['color'], marker=styles[method]['marker'], 
-             linestyle=styles[method]['linestyle'], label=method, linewidth=lw, markersize=7)
+             linestyle=styles[method]['linestyle'], label=method, linewidth=lw, markersize=6)
 
-ax1.legend(loc='upper right', frameon=True)
-ax1.tick_params(axis='x', labelrotation=45, labelsize=8)
+ax1.set_xticks(x_coords)
+ax1.set_xticklabels(layer_indices, rotation=0, fontsize=9.5, ha='center')
+ax1.legend(loc='upper left', frameon=True, fontsize=9)
 
 # Plot 2: Active Neurons Ratio
-ax2.set_title('Layer-wise Neuron Retention\nActive Neurons to Total Neurons Ratio (~95% Global Sparsity)', fontsize=11, fontweight='bold')
-ax2.set_ylabel('Active Neurons Ratio', fontsize=10)
-ax2.set_xlabel('Network Layer Name', fontsize=10)
+ax2.set_title('(b) Active Neurons Ratio (MiniBERT @ 95% Sparsity)', fontsize=11, fontweight='bold')
+ax2.set_ylabel('Active Neurons Ratio', fontsize=10, fontweight='bold')
+ax2.set_xlabel(f'Layer Index (1 to {num_layers})', fontsize=10, fontweight='bold')
 
 for method, data in layer_data.items():
     if not data['layers']:
         continue
     lw = 2.0 if styles[method]['linestyle'] == '-' else 1.3
-    ax2.plot(data['layers'], data['neurons_ratio'], 
+    ax2.plot(x_coords, data['neurons_ratio'], 
              color=styles[method]['color'], marker=styles[method]['marker'], 
-             linestyle=styles[method]['linestyle'], label=method, linewidth=lw, markersize=7)
+             linestyle=styles[method]['linestyle'], label=method, linewidth=lw, markersize=6)
 
-ax2.tick_params(axis='x', labelrotation=45, labelsize=8)
+ax2.set_xticks(x_coords)
+ax2.set_xticklabels(layer_indices, rotation=0, fontsize=9.5, ha='center')
+# Legend on right plot is removed to avoid redundancy
 
 plt.tight_layout()
 
