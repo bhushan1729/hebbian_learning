@@ -192,7 +192,7 @@ def plot_dadp_vs_baseline(
     base_norm_entropy = [baseline_metrics[l]["norm_entropy"] for l in layer_names]
     base_eff_rank = [baseline_metrics[l]["eff_rank"] for l in layer_names]
     
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5.0), dpi=300)
+    fig, axes = plt.subplots(1, 2, figsize=(15, 6.2), dpi=300)
     
     # Define color palette & marker styles
     colors = ['#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#bcbd22', '#17becf']
