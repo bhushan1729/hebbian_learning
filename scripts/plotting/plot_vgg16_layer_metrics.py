@@ -61,46 +61,62 @@ for method, path in comparison_files.items():
         layer_data[method]['weights_ratio'].append(active_w / total_w)
         layer_data[method]['neurons_ratio'].append(active_n / total_n)
 
-# Plotting Subplots
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6.5), dpi=150)
+# Plotting Subplots without in-figure titles (clean layout, larger readable fonts)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 4.8), dpi=300)
 
-# Set common grid & formatting
 for ax in [ax1, ax2]:
     ax.grid(True, linestyle='--', alpha=0.5)
 
+# Generate numeric layer indices for x-axis ticks (1, 2, 3, ...)
+sample_method = list(layer_data.keys())[0] if layer_data else None
+num_layers = len(layer_data[sample_method]['layers']) if sample_method and layer_data[sample_method]['layers'] else 16
+layer_indices = [str(i + 1) for i in range(num_layers)]
+x_coords = np.arange(num_layers)
+
 # Plot 1: Active Weights Ratio
-ax1.set_title('Layer-wise Capacity Distribution\nActive Weights to Total Weights Ratio (~90% Global Sparsity)', fontsize=11, fontweight='bold')
-ax1.set_ylabel('Active Weights Ratio', fontsize=10)
-ax1.set_xlabel('Network Layer Name', fontsize=10)
+ax1.set_ylabel('Active Weights Ratio', fontsize=13, fontweight='semibold')
+ax1.set_xlabel(f'Layer Index (1 to {num_layers})', fontsize=13, fontweight='semibold')
 
 for method, data in layer_data.items():
-    lw = 2.0 if styles[method]['linestyle'] == '-' else 1.3
-    ax1.plot(data['layers'], data['weights_ratio'], 
+    if not data['layers']:
+        continue
+    lw = 2.2 if styles[method]['linestyle'] == '-' else 1.5
+    ax1.plot(x_coords, data['weights_ratio'], 
              color=styles[method]['color'], marker=styles[method]['marker'], 
              linestyle=styles[method]['linestyle'], label=method, linewidth=lw, markersize=7)
 
-ax1.legend(loc='upper right', frameon=True)
-ax1.tick_params(axis='x', labelrotation=90, labelsize=8)
+ax1.set_xticks(x_coords)
+ax1.set_xticklabels(layer_indices, rotation=0, fontsize=11, ha='center')
+ax1.tick_params(axis='y', labelsize=11)
+ax1.legend(loc='upper right', frameon=True, fontsize=11, framealpha=0.92)
 
 # Plot 2: Active Neurons Ratio
-ax2.set_title('Layer-wise Neuron Retention\nActive Neurons to Total Neurons Ratio (~90% Global Sparsity)', fontsize=11, fontweight='bold')
-ax2.set_ylabel('Active Neurons Ratio', fontsize=10)
-ax2.set_xlabel('Network Layer Name', fontsize=10)
+ax2.set_ylabel('Active Neurons Ratio', fontsize=13, fontweight='semibold')
+ax2.set_xlabel(f'Layer Index (1 to {num_layers})', fontsize=13, fontweight='semibold')
 
 for method, data in layer_data.items():
-    lw = 2.0 if styles[method]['linestyle'] == '-' else 1.3
-    ax2.plot(data['layers'], data['neurons_ratio'], 
+    if not data['layers']:
+        continue
+    lw = 2.2 if styles[method]['linestyle'] == '-' else 1.5
+    ax2.plot(x_coords, data['neurons_ratio'], 
              color=styles[method]['color'], marker=styles[method]['marker'], 
              linestyle=styles[method]['linestyle'], label=method, linewidth=lw, markersize=7)
 
-ax2.tick_params(axis='x', labelrotation=90, labelsize=8)
+ax2.set_xticks(x_coords)
+ax2.set_xticklabels(layer_indices, rotation=0, fontsize=11, ha='center')
+ax2.tick_params(axis='y', labelsize=11)
 
 plt.tight_layout()
 
 # Save image
-output_path = 'results/vgg16_cifar10_experiments/vgg16_cifar10_layer_wise_comparison.png'
-os.makedirs(os.path.dirname(output_path), exist_ok=True)
-plt.savefig(output_path, bbox_inches='tight', dpi=300)
-plt.close()
+output_paths = [
+    'results/vgg16_cifar10_experiments/vgg16_cifar10_layer_wise_comparison.png',
+    'plots/vgg16_cifar10_layer_wise_comparison_95.png',
+    'iclr-2027-style-files/iclr2027/plots/vgg16_cifar10_layer_wise_comparison_95.png'
+]
+for outp in output_paths:
+    os.makedirs(os.path.dirname(outp), exist_ok=True)
+    plt.savefig(outp, bbox_inches='tight', dpi=300)
+    print(f"Saved: {outp}")
 
-print(f"Layer-wise active weights and neurons comparison plots successfully saved to {output_path}")
+plt.close()
