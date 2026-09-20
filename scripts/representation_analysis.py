@@ -207,7 +207,6 @@ def plot_dadp_vs_baseline(
         norm_entropy = [metrics[l]["norm_entropy"] for l in layer_names]
         axes[0].plot(x_coords, norm_entropy, f'{marker}--', label=label, color=color, linewidth=1.3, markersize=5.5)
         
-    axes[0].set_title(f"{model_name}: Normalized Dataset Entropy ($S_1$) Across Layers", fontsize=11, fontweight='bold')
     axes[0].set_xlabel(f"Layer Index (1 to {num_layers})", fontsize=11, fontweight='bold')
     axes[0].set_ylabel("Normalized Entropy $S_1(Z) / \\log_2(N)$", fontsize=10)
     axes[0].set_xticks(x_coords)
@@ -224,7 +223,6 @@ def plot_dadp_vs_baseline(
         eff_rank = [metrics[l]["eff_rank"] for l in layer_names]
         axes[1].plot(x_coords, eff_rank, f'{marker}--', label=label, color=color, linewidth=1.3, markersize=5.5)
         
-    axes[1].set_title(f"{model_name}: Effective Rank ($\\exp(S_1)$) Across Layers", fontsize=11, fontweight='bold')
     axes[1].set_xlabel(f"Layer Index (1 to {num_layers})", fontsize=11, fontweight='bold')
     axes[1].set_ylabel("Effective Rank", fontsize=10)
     axes[1].set_xticks(x_coords)
