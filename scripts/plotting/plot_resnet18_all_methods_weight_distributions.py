@@ -6,17 +6,18 @@ import os
 def plot_all_methods_weight_distributions(checkpoint_paths, output_path="plots/resnet18_all_methods_weight_distributions.png"):
     """
     Loads ResNet-18 checkpoints for all pruning methods and plots their global active
-    weight distributions side-by-side in a SINGLE ROW (1x5 layout) with increased x-axis label font size.
+    weight distributions side-by-side in a SINGLE ROW (1x5 layout) without a main figure title
+    and with larger, readable fonts for publication.
     """
     # 1 row, 5 columns layout for all 5 methods
     fig, axes = plt.subplots(1, 5, figsize=(22, 4.5), dpi=300)
 
     plot_info = {
         'dense':     ('Dense Baseline', 'darkblue', 1e6, 1.1e6, [2e5, 4e5, 6e5, 8e5, 10e5]),
-        'hebbian':   ('DADP (Hebbian)', '#d62728', 1e3, 3.5e3, [1e3, 2e3, 3e3]),
-        'magnitude': ('Magnitude (One-shot)', '#1f77b4', 1e3, 3.5e3, [1e3, 2e3, 3e3]),
-        'snip':      ('SNIP (One-shot)', '#2ca02c', 1e3, 3.5e3, [1e3, 2e3, 3e3]),
-        'rigl':      ('RigL (Dynamic)', '#9467bd', 1e3, 7.5e3, [1e3, 2e3, 3e3, 4e3, 5e3, 6e3, 7e3])
+        'hebbian':   ('DADP (Ours)', '#d62728', 1e3, 3.5e3, [1e3, 2e3, 3e3]),
+        'magnitude': ('Magnitude', '#1f77b4', 1e3, 3.5e3, [1e3, 2e3, 3e3]),
+        'snip':      ('SNIP', '#2ca02c', 1e3, 3.5e3, [1e3, 2e3, 3e3]),
+        'rigl':      ('RigL', '#9467bd', 1e3, 7.5e3, [1e3, 2e3, 3e3, 4e3, 5e3, 6e3, 7e3])
     }
 
     # Generate synthetic fallback data if checkpoints are missing locally
@@ -64,17 +65,17 @@ def plot_all_methods_weight_distributions(checkpoint_paths, output_path="plots/r
 
         # Plot Histogram
         axes[i].hist(global_w, bins=200, color=color, alpha=0.9, density=False)
-        axes[i].set_title(title, fontsize=12, fontweight='bold', pad=8)
 
-        # Increased font size for X-axis labels and tick labels
-        axes[i].set_xlabel("Weight Value", fontsize=12, fontweight='bold')
-        axes[i].tick_params(axis='x', labelsize=11)
-        axes[i].tick_params(axis='y', labelsize=10)
+        # --- Increased Font Sizes (No main title, larger method titles & axis labels) ---
+        axes[i].set_title(title, fontsize=15, fontweight='bold', pad=10)
+        axes[i].set_xlabel("Weight Value", fontsize=14, fontweight='bold')
+        axes[i].tick_params(axis='x', labelsize=12)
+        axes[i].tick_params(axis='y', labelsize=11)
 
         if i == 0:
-            axes[i].set_ylabel("Count", fontsize=11, fontweight='bold')
+            axes[i].set_ylabel("Count", fontsize=13, fontweight='bold')
         else:
-            axes[i].set_ylabel("Count", fontsize=10)
+            axes[i].set_ylabel("Count", fontsize=12)
 
         axes[i].grid(True, linestyle='--', alpha=0.3)
 
@@ -83,7 +84,6 @@ def plot_all_methods_weight_distributions(checkpoint_paths, output_path="plots/r
         axes[i].set_yticks(ticks_y)
         axes[i].ticklabel_format(style='sci', scilimits=(0,0), axis='y')
 
-    plt.suptitle("Model-Wide Weight Distribution Profiles Across Pruning Methods (ResNet-18)", y=1.03, fontsize=14, fontweight='bold')
     plt.tight_layout()
 
     # Save to required directory paths
@@ -96,7 +96,7 @@ def plot_all_methods_weight_distributions(checkpoint_paths, output_path="plots/r
         os.makedirs(os.path.dirname(p), exist_ok=True)
         plt.savefig(p, bbox_inches='tight', dpi=300)
     plt.close()
-    print(f"Weight comparison plot successfully saved to {output_path}")
+    print(f"ResNet-18 weight comparison plot successfully saved to {output_path}")
 
 if __name__ == '__main__':
     CHECKPOINTS = {
@@ -107,5 +107,3 @@ if __name__ == '__main__':
         'rigl':      "results/resnet18_cifar10_experiments/models/rigl_resnet18_CIFAR10_sp0.99.pth",
     }
     plot_all_methods_weight_distributions(CHECKPOINTS)
-
-

@@ -6,7 +6,8 @@ import os
 def plot_all_methods_weight_distributions(checkpoint_paths, output_path="plots/vgg16_all_methods_weight_distributions.png"):
     """
     Loads VGG-16 checkpoints for all pruning methods and plots their global active
-    weight distributions side-by-side in a SINGLE ROW (1x5 layout) with increased x-axis label font size.
+    weight distributions side-by-side in a SINGLE ROW (1x5 layout) without a main figure title
+    and with larger, readable fonts for publication.
     """
     # 1 row, 5 columns layout for all 5 methods
     fig, axes = plt.subplots(1, 5, figsize=(22, 4.5), dpi=300)
@@ -14,10 +15,10 @@ def plot_all_methods_weight_distributions(checkpoint_paths, output_path="plots/v
     # Define plot titles, colors, and custom Y-axis scaling for consistency
     plot_info = {
         'dense':     ('Dense Baseline', 'darkblue', 1e5, 7.5e5, [1e5, 2e5, 3e5, 4e5, 5e5, 6e5, 7e5]),
-        'hebbian':   ('DADP (Hebbian)', '#d62728', 1e4, 7.5e4, [1e4, 2e4, 3e4, 4e4, 5e4, 6e4, 7e4]),
-        'magnitude': ('Magnitude (One-shot)', '#1f77b4', 1e4, 7.5e4, [1e4, 2e4, 3e4, 4e4, 5e4, 6e4, 7e4]),
-        'snip':      ('SNIP (One-shot)', '#2ca02c', 1e4, 7.5e4, [1e4, 2e4, 3e4, 4e4, 5e4, 6e4, 7e4]),
-        'rigl':      ('RigL (Dynamic)', '#9467bd', 1e4, 7.5e4, [1e4, 2e4, 3e4, 4e4, 5e4, 6e4, 7e4])
+        'hebbian':   ('DADP (Ours)', '#d62728', 1e4, 7.5e4, [1e4, 2e4, 3e4, 4e4, 5e4, 6e4, 7e4]),
+        'magnitude': ('Magnitude', '#1f77b4', 1e4, 7.5e4, [1e4, 2e4, 3e4, 4e4, 5e4, 6e4, 7e4]),
+        'snip':      ('SNIP', '#2ca02c', 1e4, 7.5e4, [1e4, 2e4, 3e4, 4e4, 5e4, 6e4, 7e4]),
+        'rigl':      ('RigL', '#9467bd', 1e4, 7.5e4, [1e4, 2e4, 3e4, 4e4, 5e4, 6e4, 7e4])
     }
 
     # Fallback simulation parameters if checkpoints are missing locally
@@ -66,17 +67,17 @@ def plot_all_methods_weight_distributions(checkpoint_paths, output_path="plots/v
 
         # Plot Histogram
         axes[i].hist(global_w, bins=250, color=color, alpha=0.9, density=False)
-        axes[i].set_title(title, fontsize=12, fontweight='bold', pad=8)
 
-        # --- Increased X-axis Font Sizes ---
-        axes[i].set_xlabel("Weight Value", fontsize=12, fontweight='bold')
-        axes[i].tick_params(axis='x', labelsize=11)
-        axes[i].tick_params(axis='y', labelsize=10)
+        # --- Increased Font Sizes (No main title, larger method titles & axis labels) ---
+        axes[i].set_title(title, fontsize=15, fontweight='bold', pad=10)
+        axes[i].set_xlabel("Weight Value", fontsize=14, fontweight='bold')
+        axes[i].tick_params(axis='x', labelsize=12)
+        axes[i].tick_params(axis='y', labelsize=11)
 
         if i == 0:
-            axes[i].set_ylabel("Count", fontsize=11, fontweight='bold')
+            axes[i].set_ylabel("Count", fontsize=13, fontweight='bold')
         else:
-            axes[i].set_ylabel("Count", fontsize=10)
+            axes[i].set_ylabel("Count", fontsize=12)
 
         axes[i].grid(True, linestyle='--', alpha=0.3)
 
@@ -85,12 +86,12 @@ def plot_all_methods_weight_distributions(checkpoint_paths, output_path="plots/v
         axes[i].set_yticks(ticks_y)
         axes[i].ticklabel_format(style='sci', scilimits=(0,0), axis='y')
 
-    plt.suptitle("Model-Wide Weight Distribution Profiles Across Pruning Methods (VGG-16)", y=1.03, fontsize=14, fontweight='bold')
     plt.tight_layout()
 
     out_paths = [
         output_path,
-        "results/vgg16_cifar10_experiments/vgg16_all_methods_weight_distributions.png"
+        "results/vgg16_cifar10_experiments/vgg16_all_methods_weight_distributions.png",
+        "iclr-2027-style-files/iclr2027/plots/vgg16_all_methods_weight_distributions.png"
     ]
     for p in out_paths:
         os.makedirs(os.path.dirname(p), exist_ok=True)
@@ -98,7 +99,7 @@ def plot_all_methods_weight_distributions(checkpoint_paths, output_path="plots/v
     plt.close()
     print(f"VGG-16 weight comparison plot successfully saved to {output_path}")
 
-# Map paths on Google Drive
+# Map paths on Google Drive / Local
 CHECKPOINTS = {
     'dense':     "results/vgg16_cifar10_experiments/models/baseline_vgg16_CIFAR10.pth",
     'hebbian':   "results/vgg16_cifar10_experiments/models/hebbian_vgg16_CIFAR10_thr5e-06_dt500.pth",
