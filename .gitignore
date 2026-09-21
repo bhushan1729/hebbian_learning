@@ -1,8 +1,10 @@
 logs
 papers
 results/
+plots/
 data/
 *.zip
+*.png
 __pycache__/
 local_test_out/
 test_out/
