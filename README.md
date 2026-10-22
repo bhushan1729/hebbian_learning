@@ -46,8 +46,6 @@ We support five primary architectures, each with a **Baseline** and a **Pruned**
 ## 📂 Project Directory Structure
 
 ```
-├── docs/               # Outlines, suggestions, and research notes
-├── notebooks/          # Colab-ready experimental runner notebooks
 ├── scripts/            # Core training and pruning engine code
 │   ├── plotting/       # Visualization and figure generator scripts
 │   ├── data_loader.py  # Dataset loading & preprocessing pipelines
